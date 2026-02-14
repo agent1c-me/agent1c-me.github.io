@@ -84,6 +84,7 @@ let onboardingOpenAiSettingsSaved = false
 let openAiEditing = false
 let telegramEditing = false
 let docsAutosaveTimer = null
+let loopTimingSaveTimer = null
 const pendingDocSaves = new Set()
 const wins = {
   chat: null,
@@ -703,10 +704,11 @@ function setModelOptions(ids, selected){
 
 function saveDraftFromInputs(){
   if (els.modelInput) appState.config.model = els.modelInput.value || appState.config.model
-  if (els.heartbeatInput) appState.config.heartbeatIntervalMs = Math.max(5000, Number(els.heartbeatInput.value) || 60000)
+  if (els.loopHeartbeatMinInput) appState.config.heartbeatIntervalMs = Math.max(60000, Math.floor(Number(els.loopHeartbeatMinInput.value) || 1) * 60000)
+  else if (els.heartbeatInput) appState.config.heartbeatIntervalMs = Math.max(5000, Number(els.heartbeatInput.value) || 60000)
   if (els.contextInput) appState.config.maxContextMessages = Math.max(4, Math.min(64, Number(els.contextInput.value) || 16))
   if (els.temperatureInput) appState.config.temperature = Math.max(0, Math.min(1.5, Number(els.temperatureInput.value) || 0.4))
-  if (els.telegramPollInput) appState.telegramPollMs = Math.max(5000, Number(els.telegramPollInput.value) || 15000)
+  if (els.telegramPollInput) appState.telegramPollMs = Math.max(1000, Math.floor((Number(els.telegramPollInput.value) || 15) * 1000))
   if (els.telegramEnabledSelect) appState.telegramEnabled = els.telegramEnabledSelect.value === "on"
   if (els.soulInput) appState.agent.soulMd = els.soulInput.value
   if (els.heartbeatDocInput) appState.agent.heartbeatMd = els.heartbeatDocInput.value
@@ -715,9 +717,10 @@ function saveDraftFromInputs(){
 function loadInputsFromState(){
   setModelOptions(appState.openAiModels, appState.config.model)
   if (els.heartbeatInput) els.heartbeatInput.value = String(appState.config.heartbeatIntervalMs)
+  if (els.loopHeartbeatMinInput) els.loopHeartbeatMinInput.value = String(Math.max(1, Math.round(appState.config.heartbeatIntervalMs / 60000)))
   if (els.contextInput) els.contextInput.value = String(appState.config.maxContextMessages)
   if (els.temperatureInput) els.temperatureInput.value = String(appState.config.temperature)
-  if (els.telegramPollInput) els.telegramPollInput.value = String(appState.telegramPollMs)
+  if (els.telegramPollInput) els.telegramPollInput.value = String(Math.max(1, Math.round(appState.telegramPollMs / 1000)))
   if (els.telegramEnabledSelect) els.telegramEnabledSelect.value = appState.telegramEnabled ? "on" : "off"
   if (els.soulInput) els.soulInput.value = appState.agent.soulMd
   if (els.heartbeatDocInput) els.heartbeatDocInput.value = appState.agent.heartbeatMd
@@ -768,6 +771,7 @@ function refreshUi(){
   if (els.heartbeatInput) els.heartbeatInput.disabled = !canUse
   if (els.contextInput) els.contextInput.disabled = !canUse
   if (els.temperatureInput) els.temperatureInput.disabled = !canUse
+  if (els.loopHeartbeatMinInput) els.loopHeartbeatMinInput.disabled = !canUse
   if (els.telegramPollInput) els.telegramPollInput.disabled = !canUse
   if (els.telegramEnabledSelect) els.telegramEnabledSelect.disabled = !canUse
   if (els.soulInput) els.soulInput.disabled = !canUse
@@ -920,10 +924,6 @@ function openAiWindowHtml(){
           <span>Rolling context max messages</span>
           <input id="contextInput" class="field" type="number" min="4" max="64" step="1" />
         </label>
-        <label class="agent-form-label">
-          <span>Heartbeat interval (ms)</span>
-          <input id="heartbeatInput" class="field" type="number" min="5000" step="1000" />
-        </label>
       </div>
       <div class="agent-row">
         <button id="saveSettingsBtn" class="btn" type="button">Save OpenAI Settings</button>
@@ -954,8 +954,8 @@ function telegramWindowHtml(){
       </div>
       <div class="agent-grid2">
         <label class="agent-form-label">
-          <span>Telegram poll interval (ms)</span>
-          <input id="telegramPollInput" class="field" type="number" min="5000" step="1000" />
+          <span>Telegram poll interval (sec)</span>
+          <input id="telegramPollInput" class="field" type="number" min="1" step="1" />
         </label>
         <label class="agent-form-label">
           <span>Telegram bridge</span>
@@ -976,6 +976,10 @@ function telegramWindowHtml(){
 function configWindowHtml(){
   return `
     <div class="agent-stack">
+      <label class="agent-form-label">
+        <span>Heartbeat every (min)</span>
+        <input id="loopHeartbeatMinInput" class="field" type="number" min="1" step="1" />
+      </label>
       <div class="agent-row agent-wrap-row">
         <button id="startLoopBtn" class="btn" type="button">Start Agent Loop</button>
         <button id="stopLoopBtn" class="btn" type="button">Stop Loop</button>
@@ -1047,6 +1051,7 @@ function cacheElements(){
     telegramBadge: byId("telegramBadge"),
     modelInput: byId("modelInput"),
     heartbeatInput: byId("heartbeatInput"),
+    loopHeartbeatMinInput: byId("loopHeartbeatMinInput"),
     contextInput: byId("contextInput"),
     temperatureInput: byId("temperatureInput"),
     telegramPollInput: byId("telegramPollInput"),
@@ -1125,21 +1130,6 @@ async function heartbeatTick(){
   if (!appState.unlocked) return
   appState.agent.lastTickAt = Date.now()
   if (els.lastTick) els.lastTick.textContent = formatTime(appState.agent.lastTickAt)
-  const idleMs = Date.now() - appState.lastUserSeenAt
-  const isAway = idleMs > 120000
-  if (isAway) {
-    if (Date.now() - appState.awayStatusSentAt > 180000) {
-      const awayText = "Heartbeat check: you seem away. I will stay quiet until you return."
-      pushRolling("assistant", awayText)
-      const primaryThread = getPrimaryLocalThread()
-      if (primaryThread?.id) pushLocalMessage(primaryThread.id, "assistant", awayText)
-      appState.awayStatusSentAt = Date.now()
-      await addEvent("heartbeat_away", "User appears away")
-      await persistState()
-      renderChat()
-    }
-    return
-  }
   const apiKey = await readProviderKey("openai")
   if (!apiKey) {
     await addEvent("heartbeat_skipped", "No OpenAI key")
@@ -1313,6 +1303,15 @@ function wireMainDom(){
   })
   els.heartbeatDocInput?.addEventListener("input", () => {
     scheduleDocsAutosave("heartbeat")
+  })
+  els.loopHeartbeatMinInput?.addEventListener("change", async () => {
+    saveDraftFromInputs()
+    await persistState()
+    if (appState.running) {
+      stopLoop()
+      startLoop()
+    }
+    setStatus("Loop heartbeat timing saved.")
   })
 
   if (els.chatForm) {
