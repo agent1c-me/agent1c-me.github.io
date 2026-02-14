@@ -492,6 +492,10 @@ Deployment pattern used:
 - For agent1c, autonomy in-tab is primary; security controls must not silently disable core agent behavior.
 7. Prefer smallest possible patch in HedgeyOS core files (`wm.js`, `theme.js`, `main.js`).
 8. If behavior regresses, revert quickly and re-apply a narrower change.
+9. Do not add speculative behavioral heuristics (for example: away detection, throttling, gating, silent fallbacks) unless explicitly requested.
+10. If a behavior policy is ambiguous, default to deterministic always-on execution and ask before adding conditional logic.
+11. Never replace existing user-visible behavior with a "smart" alternative without confirming.
+12. Before merge, run a "did I invent extra behavior?" check and remove anything not in user requirements.
 
 ---
 
@@ -507,3 +511,4 @@ Deployment pattern used:
 - Tile/Arrange avoid desktop icon rows dynamically.
 - Arrange while tiled performs untile+arrange.
 - Vault lock protects key access but does not terminate loop intent.
+- Heartbeat runs on configured loop schedule; no implicit away/presence gating unless explicitly requested.
