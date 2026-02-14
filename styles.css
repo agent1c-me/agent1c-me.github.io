@@ -1686,6 +1686,11 @@
   color: inherit;
 }
 .agent-text:focus{ outline: none; }
+.agent-doc-state{
+  margin-top: 4px;
+  font-size: 10px;
+  opacity: 0.8;
+}
 
 @media (max-width: 860px){
   .agent-grid2{ grid-template-columns: 1fr; }

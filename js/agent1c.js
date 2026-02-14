@@ -84,6 +84,7 @@ let onboardingOpenAiSettingsSaved = false
 let openAiEditing = false
 let telegramEditing = false
 let docsAutosaveTimer = null
+const pendingDocSaves = new Set()
 const wins = {
   chat: null,
   openai: null,
@@ -543,10 +544,32 @@ function formatTime(ts){
   try { return new Date(ts).toLocaleString() } catch { return "" }
 }
 
+function wrappedRowCount(line, availableWidth, font){
+  if (!line) return 1
+  const text = line.replaceAll("\t", "  ")
+  const canvas = wrappedRowCount._canvas || (wrappedRowCount._canvas = document.createElement("canvas"))
+  const ctx = canvas.getContext("2d")
+  ctx.font = font
+  const width = ctx.measureText(text).width
+  return Math.max(1, Math.ceil(width / Math.max(1, availableWidth)))
+}
+
 function updateLineNumbers(textarea, lines){
   if (!textarea || !lines) return
-  const count = Math.max(1, (textarea.value.match(/\n/g)?.length || 0) + 1)
-  lines.textContent = Array.from({ length: count }, (_, i) => String(i + 1)).join("\n")
+  const style = getComputedStyle(textarea)
+  const pl = parseFloat(style.paddingLeft || "0") || 0
+  const pr = parseFloat(style.paddingRight || "0") || 0
+  const availableWidth = Math.max(1, textarea.clientWidth - pl - pr)
+  const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`
+  const rawLines = String(textarea.value || "").split("\n")
+  const numbers = []
+  for (let i = 0; i < rawLines.length; i++) {
+    const wraps = wrappedRowCount(rawLines[i], availableWidth, font)
+    numbers.push(String(i + 1))
+    for (let j = 1; j < wraps; j++) numbers.push("")
+  }
+  if (!numbers.length) numbers.push("1")
+  lines.textContent = numbers.join("\n")
 }
 
 function bindNotepad(textarea, lines){
@@ -557,6 +580,12 @@ function bindNotepad(textarea, lines){
   }
   textarea.addEventListener("input", sync)
   textarea.addEventListener("scroll", sync)
+  if (typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver(() => sync())
+    ro.observe(textarea)
+  } else {
+    window.addEventListener("resize", sync)
+  }
   sync()
 }
 
@@ -569,13 +598,28 @@ function syncNotepadGutters(){
   updateLineNumbers(heartInput, heartLines)
 }
 
-function scheduleDocsAutosave(){
+function setDocSaveState(docKey, state){
+  const id = docKey === "soul" ? "soulSaveState" : "heartbeatSaveState"
+  const el = byId(id)
+  if (el) el.textContent = state
+}
+
+function scheduleDocsAutosave(docKey){
+  if (docKey) {
+    pendingDocSaves.add(docKey)
+    setDocSaveState(docKey, "Unsaved")
+  }
   if (docsAutosaveTimer) clearTimeout(docsAutosaveTimer)
   docsAutosaveTimer = setTimeout(async () => {
+    const saving = Array.from(pendingDocSaves)
+    saving.forEach(key => setDocSaveState(key, "Saving"))
     try {
       saveDraftFromInputs()
       await persistState()
+      saving.forEach(key => setDocSaveState(key, "Saved"))
+      pendingDocSaves.clear()
     } catch (err) {
+      saving.forEach(key => setDocSaveState(key, "Unsaved"))
       setStatus(err instanceof Error ? `Doc autosave failed: ${err.message}` : "Doc autosave failed")
     }
   }, 500)
@@ -953,6 +997,7 @@ function soulWindowHtml(){
       <pre id="soulLineNums" class="agent-lines"></pre>
       <textarea id="soulInput" class="agent-text" spellcheck="false"></textarea>
     </div>
+    <div id="soulSaveState" class="agent-doc-state">Saved</div>
   `
 }
 
@@ -962,6 +1007,7 @@ function heartbeatWindowHtml(){
       <pre id="heartbeatLineNums" class="agent-lines"></pre>
       <textarea id="heartbeatDocInput" class="agent-text" spellcheck="false"></textarea>
     </div>
+    <div id="heartbeatSaveState" class="agent-doc-state">Saved</div>
   `
 }
 
@@ -1263,10 +1309,10 @@ function wireMainDom(){
   bindNotepad(els.soulInput, els.soulLineNums)
   bindNotepad(els.heartbeatDocInput, els.heartbeatLineNums)
   els.soulInput?.addEventListener("input", () => {
-    scheduleDocsAutosave()
+    scheduleDocsAutosave("soul")
   })
   els.heartbeatDocInput?.addEventListener("input", () => {
-    scheduleDocsAutosave()
+    scheduleDocsAutosave("heartbeat")
   })
 
   if (els.chatForm) {
