@@ -484,6 +484,14 @@ function createNewLocalThread(){
   return appState.agent.localThreads[id]
 }
 
+function getPrimaryLocalThread(){
+  ensureLocalThreadsInitialized()
+  const locals = getLocalThreadEntries().filter(thread => (thread.source || "local") === "local")
+  if (!locals.length) return getActiveLocalThread()
+  const chatOne = locals.find(thread => String(thread.label || "").trim().toLowerCase() === "chat 1")
+  return chatOne || locals[0]
+}
+
 function pushLocalMessage(threadId, role, content){
   ensureLocalThreadsInitialized()
   const thread = appState.agent.localThreads[threadId]
@@ -1081,7 +1089,10 @@ async function heartbeatTick(){
   const isAway = idleMs > 120000
   if (isAway) {
     if (Date.now() - appState.awayStatusSentAt > 180000) {
-      pushRolling("assistant", "Heartbeat check: you seem away. I will stay quiet until you return.")
+      const awayText = "Heartbeat check: you seem away. I will stay quiet until you return."
+      pushRolling("assistant", awayText)
+      const primaryThread = getPrimaryLocalThread()
+      if (primaryThread?.id) pushLocalMessage(primaryThread.id, "assistant", awayText)
       appState.awayStatusSentAt = Date.now()
       await addEvent("heartbeat_away", "User appears away")
       await persistState()
@@ -1104,6 +1115,8 @@ async function heartbeatTick(){
     messages: appState.agent.rollingMessages,
   })
   pushRolling("assistant", reply)
+  const primaryThread = getPrimaryLocalThread()
+  if (primaryThread?.id) pushLocalMessage(primaryThread.id, "assistant", reply)
   await addEvent("heartbeat_replied", "Heartbeat response generated")
   await persistState()
   renderChat()
