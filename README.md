@@ -1,160 +1,79 @@
-# HedgeyOS
+# Agent1c.me
 
-A sophisticated Mac OS 9-inspired web desktop environment that runs entirely in your browser. HedgeyOS recreates the classic desktop experience with modern web technologies, featuring window management, an application ecosystem, encrypted file storage, and comprehensive theming.
+Agent1c.me is a serverless, AI-enabled browser OS built on HedgeyOS (`hedgeyos.github.io`).
 
-## 🌟 Features
+It runs entirely inside a browser tab with no app server. If the tab stays open, Hitomi can keep running autonomous loops and can control a Telegram bot through the configured Bot API token. If the tab closes, runtime stops.
 
-### Desktop Environment
-- **Full Window Management**: Create, drag, resize, minimize, and maximize windows
-- **Menu Bar System**: Apple-style menu with system, file, and apps menus
-- **Desktop Icons**: Clickable application shortcuts with organized layout
-- **Theme System**: Multiple OS-inspired themes with dark mode variants
+No logins, no installations, just API attach.
 
-### Application Ecosystem
-- **Built-in Apps**:
-  - **Files**: Encrypted file manager with IndexedDB storage
-  - **Notes**: Text editor with auto-save functionality
-  - **Browser**: Web browser with navigation controls
-  - **Themes**: Visual theme switcher interface
-  - **Terminal**: Web-based terminal with xterm.js
+## What It Is
 
-- **External Apps** (via `apps.json`):
-  - Games: Flipside, 3D Hedgey Town, Chordynaut, Tetris3D
-  - Utilities: DecenTerminal, PythonCity, RSS Reader
-  - Media: HedgeyTube (advanced YouTube/Spotify/SoundCloud player)
+- Local-first autonomous agent workspace inside a retro web desktop
+- Bring Your Own Keys (BYOK): OpenAI and Telegram credentials are user-provided
+- Vault encryption in-browser for stored provider credentials
+- Direct provider calls from browser to provider APIs
+- No backend required for MVP
 
-### Security & Storage
-- **Client-Side Encryption**: All files encrypted using Web Crypto API
-- **Secure Storage**: IndexedDB with AES encryption and optional passphrase protection
-- **Sandboxed Apps**: External applications loaded in secure iframes
-- **Cross-Origin Isolation**: Enhanced security via COI service worker
+## Built On HedgeyOS
 
-### Media & Integration
-- **HedgeyTube**: Sophisticated media player with URL detection and playlist management
-- **Embed Conversion**: Smart parsing of video/playlist URLs from YouTube, Spotify, SoundCloud
-- **AR Overlay**: Camera integration via HUD for augmented reality features
+This project is built on HedgeyOS and reuses its browser OS foundations:
 
-## 🏗️ Architecture
+- Window manager and desktop shell
+- Menubar and app-launch model
+- Theme system
+- IndexedDB-backed local persistence patterns
 
-### Tech Stack
-- **Frontend**: Vanilla JavaScript (ES6+), HTML5, CSS3 (no frameworks)
-- **Storage**: IndexedDB + LocalStorage with encryption layer
-- **Security**: Cross-Origin Isolation, Web Crypto API
-- **Fonts**: EnvyCodeR Nerd Font for terminal aesthetic
+Agent1c.me and HedgeyOS are both by Decentricity.
 
-### Modular Structure
-```
-js/
-├── main.js              # Application orchestrator
-├── wm.js                # Window Manager (core UI)
-├── filesystem.js        # Encrypted storage layer
-├── apps-menu.js         # Application launcher
-├── menubar.js           # Top menu bar functionality
-├── theme.js             # Theme switching and management
-└── [specialized modules]
-```
+## Core Capabilities
 
-### Theme System
-- **OS 9 Classic**: Default Mac OS 9-inspired theme
-- **System 7**: Earlier Mac OS aesthetic
-- **BeOS**: BeOS-inspired yellow titlebar theme
-- **HedgeyOS**: Custom pink-themed variant
-- **Dark Modes**: Night themes for all variants
-- **Cyberpunk Red**: Futuristic dark theme
-- **Greenscreen**: Terminal-style monochrome
+- Top-level agent windows in HedgeyOS (Chat, OpenAI API, Telegram API, Loop, SOUL.md, heartbeat.md, Events)
+- Local threaded chat with rolling context
+- Per-thread memory for local chats
+- Per-chat-id memory isolation for Telegram chats
+- Heartbeat loop and event timeline
+- Tile and Arrange window controls in the menubar
 
-## 🚀 Getting Started
+## Onboarding Flow
 
-### Local Development
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/hedgeyos/hedgeyos.github.io.git
-   cd hedgeyos.github.io
-   ```
+1. First load: only `Create Vault` is shown.
+2. After vault creation: `OpenAI API` and `Events` are shown.
+3. User must complete OpenAI setup:
+   - Save encrypted OpenAI key
+   - Test OpenAI connection
+   - Save OpenAI settings (model and temperature)
+4. After setup is complete, OpenAI window minimizes and the rest of the agent workspace appears.
+5. Telegram setup is optional, but required for Telegram bot bridging.
 
-2. Serve locally:
-   ```bash
-   python3 -m http.server 8000
-   # or use any static server
-   ```
+## Security Model (MVP)
 
-3. Open `http://localhost:8000` in your browser
+- Credentials are encrypted at rest in-browser
+- Vault unlock is passphrase-based
+- No third-party app login flow required for MVP
+- Provider secrets are not sent to any agent1c server because there is no agent1c server in this architecture
 
-### Direct Access
-You can also open `index.html` directly in your browser, though some features may require a server context.
+## Runtime Notes
 
-## 🌐 Live Demo
+- Agent runtime is tab-bound.
+- Locking vault protects secret access, while loop intent can continue and resume API work after unlock.
+- Telegram bridge runs only when enabled and when required credentials are available.
 
-Visit the live site at [https://hedgeyos.github.io](https://hedgeyos.github.io)
-
-## 📱 Mobile Support
-
-HedgeyOS includes responsive design adaptations for tablet and mobile devices, with touch-friendly interface modifications.
-
-## 🔧 Configuration
-
-### Adding External Apps
-Edit `apps.json` to add new web applications to the desktop environment. Apps are loaded via iframes with secure sandboxing.
-
-### Custom Themes
-Themes are managed through CSS custom properties in `styles.css`. New themes can be added by defining color variable sets.
-
-## 🛡️ Security Features
-
-- **Client-Side Encryption**: All user data encrypted before storage
-- **Key Management**: Optional passphrase protection with key wrapping
-- **Cross-Origin Isolation**: Prevents certain web-based attack vectors
-- **Sandboxed Applications**: External apps isolated from main system
-
-## 📦 Deployment
-
-### Local Hosting
-HedgeyOS can be hosted locally using any static web server:
+## Local Run
 
 ```bash
-# Python 3
+cd agent1c-me.github.io
 python3 -m http.server 8000
-
-# Python 2
-python -m SimpleHTTPServer 8000
-
-# Node.js
-npx serve .
-
-# PHP
-php -S localhost:8000
 ```
 
-Then visit `http://localhost:8000` in your browser.
+Open `http://localhost:8000`.
 
-### GitHub Pages
-The repository is configured for GitHub Pages deployment:
-1. Enable Pages on the default branch
-2. Site becomes available at `https://hedgeyos.github.io`
+## Live
 
-### Static Hosting
-Any static file hosting service can serve HedgeyOS - no build process required. This includes:
-- Netlify, Vercel, or similar platforms
-- Apache/Nginx servers
-- CDN services
-- Local network hosting
+- Production domain: `https://agent1c.me`
+- GitHub Pages repo: `https://github.com/agent1c-me/agent1c-me.github.io`
 
-## 🤝 Contributing
+## Development Notes
 
-HedgeyOS is built with vanilla web technologies and follows a modular architecture. Contributions are welcome for:
-- New applications and features
-- Theme improvements
-- Mobile experience enhancements
-- Security optimizations
-
-## 📄 License
-
-This project maintains the same license as the original repository.
-
-## 🔮 Future Development
-
-- Enhanced application ecosystem
-- Advanced file management features
-- Improved mobile experience
-- Additional theme variants
-- Performance optimizations 
+- Vanilla HTML, CSS, and JavaScript (no npm dependency chain)
+- Changes should preserve HedgeyOS baseline behavior unless intentionally modified
+- Integration notes and guardrails are documented in `agents.md`
