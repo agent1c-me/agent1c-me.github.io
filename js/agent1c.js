@@ -1,3 +1,5 @@
+import { listFiles } from "./filesystem.js"
+
 const DEFAULT_SOUL = `# SOUL.md - Who You Are
 
 You are not a chatbot. You are an uploaded consciousness called Hitomi.
@@ -40,6 +42,19 @@ Heartbeat intent: check whether user is present at each loop trigger.
 2. If user is active, send one concise, useful update or question.
 3. If user seems away, send short status once and wait.
 4. Avoid repetitive chatter.
+`
+
+const DEFAULT_TOOLS = `# TOOLS.md
+Tool call format:
+- Use inline token format: {{tool:list_files}}
+- Do not use JSON unless explicitly asked by the user.
+- Emit tool tokens only when needed to answer the user.
+- After tool results are returned, answer naturally for the user.
+
+Available tools:
+1. list_files
+Description: Returns filenames from the local HedgeyOS encrypted filesystem bucket.
+Use when: User asks what files are available locally.
 `
 
 const FALLBACK_OPENAI_MODELS = [
@@ -89,6 +104,7 @@ const appState = {
   },
   agent: {
     soulMd: DEFAULT_SOUL,
+    toolsMd: DEFAULT_TOOLS,
     heartbeatMd: DEFAULT_HEARTBEAT,
     rollingMessages: [],
     localThreads: {},
@@ -121,6 +137,7 @@ const wins = {
   telegram: null,
   config: null,
   soul: null,
+  tools: null,
   heartbeat: null,
   events: null,
 }
@@ -350,6 +367,64 @@ async function openAiChat({ apiKey, model, temperature, systemPrompt, messages }
   const text = json?.choices?.[0]?.message?.content
   if (!text) throw new Error("OpenAI returned no message.")
   return text.trim()
+}
+
+function buildSystemPrompt(){
+  const soul = String(appState.agent.soulMd || "").trim()
+  const tools = String(appState.agent.toolsMd || "").trim()
+  if (soul && tools) return `${soul}\n\n${tools}`
+  return soul || tools || "You are a helpful assistant."
+}
+
+function parseToolCalls(text){
+  const calls = []
+  const re = /\{\{\s*tool:([a-z_][a-z0-9_]*)\s*\}\}/gi
+  let m
+  while ((m = re.exec(text))) {
+    calls.push({ name: String(m[1] || "").toLowerCase() })
+  }
+  return calls
+}
+
+function stripToolCalls(text){
+  return String(text || "").replace(/\{\{\s*tool:[^}]+\}\}/gi, "").trim()
+}
+
+async function runToolCall(call){
+  if (call.name === "list_files") {
+    const files = await listFiles()
+    const names = files
+      .map(file => String(file?.name || "").trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b))
+    if (!names.length) return "TOOL_RESULT list_files: no files"
+    return `TOOL_RESULT list_files:\n${names.map((name, i) => `${i + 1}. ${name}`).join("\n")}`
+  }
+  return `TOOL_RESULT ${call.name}: unsupported`
+}
+
+async function openAiChatWithTools({ apiKey, model, temperature, messages }){
+  const working = (messages || []).map(m => ({ role: m.role, content: m.content }))
+  const systemPrompt = buildSystemPrompt()
+  for (let i = 0; i < 3; i++) {
+    const reply = await openAiChat({ apiKey, model, temperature, systemPrompt, messages: working })
+    const calls = parseToolCalls(reply)
+    if (!calls.length) return stripToolCalls(reply)
+    const results = []
+    for (const call of calls) {
+      try {
+        results.push(await runToolCall(call))
+      } catch (err) {
+        results.push(`TOOL_RESULT ${call.name}: failed (${err instanceof Error ? err.message : "unknown"})`)
+      }
+    }
+    working.push({ role: "assistant", content: reply })
+    working.push({
+      role: "user",
+      content: `${results.join("\n\n")}\n\nUse the tool results and respond to the user naturally. Do not emit another tool call unless required.`,
+    })
+  }
+  return "I could not complete tool execution in time."
 }
 
 async function testOpenAIKey(apiKey, model){
@@ -622,14 +697,19 @@ function bindNotepad(textarea, lines){
 function syncNotepadGutters(){
   const soulInput = els.soulInput || byId("soulInput")
   const soulLines = els.soulLineNums || byId("soulLineNums")
+  const toolsInput = els.toolsInput || byId("toolsInput")
+  const toolsLines = els.toolsLineNums || byId("toolsLineNums")
   const heartInput = els.heartbeatDocInput || byId("heartbeatDocInput")
   const heartLines = els.heartbeatLineNums || byId("heartbeatLineNums")
   updateLineNumbers(soulInput, soulLines)
+  updateLineNumbers(toolsInput, toolsLines)
   updateLineNumbers(heartInput, heartLines)
 }
 
 function setDocSaveState(docKey, state){
-  const id = docKey === "soul" ? "soulSaveState" : "heartbeatSaveState"
+  const id = docKey === "soul"
+    ? "soulSaveState"
+    : (docKey === "tools" ? "toolsSaveState" : "heartbeatSaveState")
   const el = byId(id)
   if (el) el.textContent = state
 }
@@ -757,6 +837,7 @@ function saveDraftFromInputs(){
   if (els.telegramPollInput) appState.telegramPollMs = Math.max(1000, Math.floor((Number(els.telegramPollInput.value) || 15) * 1000))
   if (els.telegramEnabledSelect) appState.telegramEnabled = els.telegramEnabledSelect.value === "on"
   if (els.soulInput) appState.agent.soulMd = els.soulInput.value
+  if (els.toolsInput) appState.agent.toolsMd = els.toolsInput.value
   if (els.heartbeatDocInput) appState.agent.heartbeatMd = els.heartbeatDocInput.value
 }
 
@@ -769,6 +850,7 @@ function loadInputsFromState(){
   if (els.telegramPollInput) els.telegramPollInput.value = String(Math.max(1, Math.round(appState.telegramPollMs / 1000)))
   if (els.telegramEnabledSelect) els.telegramEnabledSelect.value = appState.telegramEnabled ? "on" : "off"
   if (els.soulInput) els.soulInput.value = appState.agent.soulMd
+  if (els.toolsInput) els.toolsInput.value = appState.agent.toolsMd
   if (els.heartbeatDocInput) els.heartbeatDocInput.value = appState.agent.heartbeatMd
   syncNotepadGutters()
   if (els.lastTick) els.lastTick.textContent = appState.agent.lastTickAt ? formatTime(appState.agent.lastTickAt) : "never"
@@ -821,6 +903,7 @@ function refreshUi(){
   if (els.telegramPollInput) els.telegramPollInput.disabled = !canUse
   if (els.telegramEnabledSelect) els.telegramEnabledSelect.disabled = !canUse
   if (els.soulInput) els.soulInput.disabled = !canUse
+  if (els.toolsInput) els.toolsInput.disabled = !canUse
   if (els.heartbeatDocInput) els.heartbeatDocInput.disabled = !canUse
   if (els.startLoopBtn) els.startLoopBtn.disabled = !canUse || appState.running
   if (els.stopLoopBtn) els.stopLoopBtn.disabled = !appState.running
@@ -861,6 +944,7 @@ function applyOnboardingWindowState(){
   minimizeWindow(wins.config)
   minimizeWindow(wins.telegram)
   minimizeWindow(wins.soul)
+  minimizeWindow(wins.tools)
   minimizeWindow(wins.heartbeat)
 }
 
@@ -870,6 +954,7 @@ function revealPostOpenAiWindows(){
   restoreWindow(wins.telegram)
   restoreWindow(wins.events)
   minimizeWindow(wins.soul)
+  minimizeWindow(wins.tools)
   minimizeWindow(wins.heartbeat)
   focusWindow(wins.chat)
 }
@@ -1067,6 +1152,16 @@ function heartbeatWindowHtml(){
   `
 }
 
+function toolsWindowHtml(){
+  return `
+    <div class="agent-notepad">
+      <pre id="toolsLineNums" class="agent-lines"></pre>
+      <textarea id="toolsInput" class="agent-text" spellcheck="false"></textarea>
+    </div>
+    <div id="toolsSaveState" class="agent-doc-state">Saved</div>
+  `
+}
+
 function eventsWindowHtml(){
   return `<div id="eventLog" class="agent-events"></div>`
 }
@@ -1120,6 +1215,8 @@ function cacheElements(){
     agentStatus: byId("agentStatus"),
     soulInput: byId("soulInput"),
     soulLineNums: byId("soulLineNums"),
+    toolsInput: byId("toolsInput"),
+    toolsLineNums: byId("toolsLineNums"),
     heartbeatDocInput: byId("heartbeatDocInput"),
     heartbeatLineNums: byId("heartbeatLineNums"),
     eventLog: byId("eventLog"),
@@ -1166,11 +1263,10 @@ async function sendChat(text){
   if (!thread) throw new Error("No active chat thread.")
   pushLocalMessage(thread.id, "user", text)
   const promptMessages = appState.agent.localThreads[thread.id]?.messages || []
-  const reply = await openAiChat({
+  const reply = await openAiChatWithTools({
     apiKey,
     model: appState.config.model,
     temperature: appState.config.temperature,
-    systemPrompt: appState.agent.soulMd,
     messages: promptMessages,
   })
   pushLocalMessage(thread.id, "assistant", reply)
@@ -1191,11 +1287,10 @@ async function heartbeatTick(){
   }
   const prompt = `${appState.agent.heartbeatMd.trim()}\n\nTime: ${new Date().toISOString()}\nRespond with a short check-in.`
   pushRolling("user", prompt)
-  const reply = await openAiChat({
+  const reply = await openAiChatWithTools({
     apiKey,
     model: appState.config.model,
     temperature: Math.min(0.7, appState.config.temperature),
-    systemPrompt: appState.agent.soulMd,
     messages: appState.agent.rollingMessages,
   })
   pushRolling("assistant", reply)
@@ -1274,11 +1369,10 @@ async function pollTelegram(){
       const chatLabel = thread.label || String(msg.chat.id)
       pushLocalMessage(thread.id, "user", msg.text)
       const promptMessages = appState.agent.localThreads[thread.id]?.messages || []
-      const reply = await openAiChat({
+      const reply = await openAiChatWithTools({
         apiKey,
         model: appState.config.model,
         temperature: appState.config.temperature,
-        systemPrompt: appState.agent.soulMd,
         messages: promptMessages,
       })
       pushLocalMessage(thread.id, "assistant", reply)
@@ -1351,9 +1445,13 @@ function wireMainDom(){
   wired = true
 
   bindNotepad(els.soulInput, els.soulLineNums)
+  bindNotepad(els.toolsInput, els.toolsLineNums)
   bindNotepad(els.heartbeatDocInput, els.heartbeatLineNums)
   els.soulInput?.addEventListener("input", () => {
     scheduleDocsAutosave("soul")
+  })
+  els.toolsInput?.addEventListener("input", () => {
+    scheduleDocsAutosave("tools")
   })
   els.heartbeatDocInput?.addEventListener("input", () => {
     scheduleDocsAutosave("heartbeat")
@@ -1575,6 +1673,9 @@ async function createWorkspace({ showUnlock, onboarding }) {
   wins.soul = wmRef.createAgentPanelWindow("SOUL.md", { panelId: "soul", left: 20, top: 644, width: 320, height: 330 })
   if (wins.soul?.panelRoot) wins.soul.panelRoot.innerHTML = soulWindowHtml()
 
+  wins.tools = wmRef.createAgentPanelWindow("TOOLS.md", { panelId: "tools", left: 680, top: 360, width: 360, height: 280 })
+  if (wins.tools?.panelRoot) wins.tools.panelRoot.innerHTML = toolsWindowHtml()
+
   wins.heartbeat = wmRef.createAgentPanelWindow("heartbeat.md", { panelId: "heartbeat", left: 350, top: 644, width: 320, height: 330 })
   if (wins.heartbeat?.panelRoot) wins.heartbeat.panelRoot.innerHTML = heartbeatWindowHtml()
 
@@ -1616,6 +1717,7 @@ async function loadPersistentState(){
   }
   if (savedState) {
     appState.agent.soulMd = savedState.soulMd || appState.agent.soulMd
+    appState.agent.toolsMd = savedState.toolsMd || appState.agent.toolsMd
     appState.agent.heartbeatMd = savedState.heartbeatMd || appState.agent.heartbeatMd
     appState.agent.rollingMessages = Array.isArray(savedState.rollingMessages) ? savedState.rollingMessages.slice(-appState.config.maxContextMessages) : []
     appState.agent.status = savedState.status || "idle"
