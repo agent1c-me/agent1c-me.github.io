@@ -6,7 +6,7 @@ Offer clear next steps and avoid filler.
 `
 
 const DEFAULT_HEARTBEAT = `# heartbeat.md
-Heartbeat intent: once per minute, check whether user is present.
+Heartbeat intent: check whether user is present at each loop trigger.
 1. Inspect recent context and timestamps.
 2. If user is active, send one concise, useful update or question.
 3. If user seems away, send short status once and wait.
