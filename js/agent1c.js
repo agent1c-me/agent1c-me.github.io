@@ -357,6 +357,15 @@ async function testTelegramToken(token){
   return result?.username || "bot"
 }
 
+async function getTelegramBotProfile(token){
+  const response = await fetch(telegramEndpoint(token, "getMe"))
+  const result = await telegramJson(response)
+  return {
+    id: typeof result?.id === "number" ? result.id : null,
+    username: String(result?.username || "").replace(/^@/, "").toLowerCase(),
+  }
+}
+
 async function getTelegramUpdates(token, offset){
   const url = new URL(telegramEndpoint(token, "getUpdates"))
   url.searchParams.set("timeout", "0")
@@ -372,6 +381,38 @@ async function sendTelegramMessage(token, chatId, text){
     body: JSON.stringify({ chat_id: chatId, text }),
   })
   await telegramJson(response)
+}
+
+function telegramMessageTargetsBot(msg, botProfile){
+  const chatType = String(msg?.chat?.type || "").toLowerCase()
+  if (chatType !== "group" && chatType !== "supergroup") return true
+  const botUsername = String(botProfile?.username || "").toLowerCase()
+  const botId = typeof botProfile?.id === "number" ? botProfile.id : null
+  const text = String(msg?.text || "")
+  if (!text) return false
+
+  const entities = Array.isArray(msg?.entities) ? msg.entities : []
+  for (const entity of entities) {
+    if (entity?.type === "mention") {
+      const offset = Math.max(0, Number(entity.offset) || 0)
+      const length = Math.max(0, Number(entity.length) || 0)
+      const value = text.slice(offset, offset + length).replace(/^@/, "").toLowerCase()
+      if (botUsername && value === botUsername) return true
+    }
+    if (entity?.type === "text_mention") {
+      const userId = entity?.user?.id
+      const username = String(entity?.user?.username || "").replace(/^@/, "").toLowerCase()
+      if ((botId && userId === botId) || (botUsername && username === botUsername)) return true
+    }
+  }
+
+  const replyFrom = msg?.reply_to_message?.from
+  if (replyFrom?.is_bot) {
+    const replyId = typeof replyFrom.id === "number" ? replyFrom.id : null
+    const replyUsername = String(replyFrom.username || "").replace(/^@/, "").toLowerCase()
+    if ((botId && replyId === botId) || (botUsername && replyUsername === botUsername)) return true
+  }
+  return false
 }
 
 function pushRolling(role, content){
@@ -1101,6 +1142,7 @@ async function pollTelegram(){
   try {
     const [token, apiKey] = await Promise.all([readProviderKey("telegram"), readProviderKey("openai")])
     if (!token || !apiKey) return
+    const botProfile = await getTelegramBotProfile(token)
     const offset = typeof appState.agent.telegramLastUpdateId === "number" ? appState.agent.telegramLastUpdateId + 1 : undefined
     const updates = await getTelegramUpdates(token, offset)
     let discoveredTelegramThread = false
@@ -1108,6 +1150,8 @@ async function pollTelegram(){
       appState.agent.telegramLastUpdateId = update.update_id
       const msg = update.message
       if (!msg?.text || !msg?.chat?.id) continue
+      if (msg?.from?.is_bot) continue
+      if (!telegramMessageTargetsBot(msg, botProfile)) continue
       appState.lastUserSeenAt = Date.now()
       const threadId = `telegram:${String(msg.chat.id)}`
       const existed = Boolean(appState.agent.localThreads?.[threadId])
