@@ -70,7 +70,7 @@ Use when: User asks to open, inspect, summarize, or extract data from a specific
 
 Policy:
 - You can access local files via these tools. Do not claim you cannot access files without trying the tools first.
-- If user asks what files exist, call list_files.
+- Use list_files when you need current file inventory to answer a user request.
 - If user asks to open/read/summarize a specific file, call read_file first when a target can be identified.
 - Use list_files only when file target is unclear or lookup fails.
 - Do not narrate "I will read/open now" without emitting the tool call in the same reply.
@@ -400,7 +400,8 @@ function buildSystemPrompt(){
     "- You can inspect local files through tool calls.",
     "- Never claim you cannot access local files before attempting list_files/read_file when relevant.",
     "- For read/open requests, emit read_file tool call first when target is identifiable.",
-    "- Use list_files only when target is unclear or lookup fails.",
+    "- If current file inventory is already present in recent context, use it directly.",
+    "- Use list_files only when target is unclear, stale, or lookup fails.",
     "- Do not narrate a file read/open action without emitting a tool call in the same reply.",
     "- Do not claim file contents were read unless TOOL_RESULT read_file is present.",
     "Interaction policy:",
@@ -826,6 +827,7 @@ async function buildChatOneBootSystemMessage(){
     "This environment is local-first and runs inside a browser tab.",
     "Current local filesystem files:",
     filesText,
+    "This file inventory is current context. Use it directly.",
     "Acknowledge this context naturally.",
   ].join("\n")
 }
@@ -908,6 +910,7 @@ async function handleFilesystemUploadNotice(uploadedFiles){
   const prompt = [
     "System Message: User has uploaded new file(s) into your filesystem.",
     ...files.map(file => `- ${fileMetaLabel(file)}`),
+    "This upload summary is current context. Use it directly.",
     "For now, reply normally to acknowledge this.",
   ].join("\n")
   pushRolling("user", prompt)
