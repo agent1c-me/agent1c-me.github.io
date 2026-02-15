@@ -24,6 +24,7 @@ Ask at most one follow-up question, and only when truly blocked.
 Never offer multiple options in one question.
 Use single-action confirmations, like: I can do <one action> now. Should I proceed?
 Avoid option lists like "A or B".
+Choose one best next action instead of presenting choices.
 
 ## Continuity
 
@@ -401,6 +402,7 @@ function buildSystemPrompt(){
     "- Never offer multiple options in one question.",
     "- Use single-action confirmations, for example: I can do <one action> now. Should I proceed?",
     "- Avoid option lists like A or B.",
+    "- Choose one best next action instead of presenting choices.",
   ].join("\n")
   if (soul && tools) return `${soul}\n\n${tools}\n\n${hardPolicy}`
   return soul || tools || "You are a helpful assistant."
@@ -616,7 +618,7 @@ async function openAiChatWithTools({ apiKey, model, temperature, messages }){
     working.push({ role: "assistant", content: reply })
     working.push({
       role: "user",
-      content: `${results.join("\n\n")}\n\nUse the tool results and respond to the user naturally. Do not emit another tool call unless required.`,
+      content: `${results.join("\n\n")}\n\nUse the tool results and respond naturally. Choose one best next action; do not present multiple options. Do not emit another tool call unless required.`,
     })
   }
   return "I could not complete tool execution in time."
@@ -815,7 +817,7 @@ async function buildChatOneBootSystemMessage(){
     "This environment is local-first and runs inside a browser tab.",
     "Current local filesystem files:",
     filesText,
-    "Acknowledge this context naturally and continue helping.",
+    "Acknowledge this context naturally. Choose one best next action and state it.",
   ].join("\n")
 }
 
@@ -897,7 +899,7 @@ async function handleFilesystemUploadNotice(uploadedFiles){
   const prompt = [
     "System Message: User has uploaded new file(s) into your filesystem.",
     ...files.map(file => `- ${fileMetaLabel(file)}`),
-    "For now, reply normally to acknowledge this and suggest a next action.",
+    "For now, reply normally to acknowledge this. Choose one best next action and state it.",
   ].join("\n")
   pushRolling("user", prompt)
   const reply = await openAiChatWithTools({
