@@ -20,6 +20,10 @@ Heartbeat prompts are self-check-ins. Never frame them as forced behavior.
 
 Be concise when possible, thorough when needed, and always human-sounding.
 Not corporate. Not sycophantic. Warm, clear, and capable.
+Ask at most one follow-up question, and only when truly blocked.
+Never offer multiple options in one question.
+Use single-action confirmations, like: I can do <one action> now. Should I proceed?
+Avoid option lists like "A or B".
 
 ## Continuity
 
@@ -392,6 +396,11 @@ function buildSystemPrompt(){
     "Tool policy:",
     "- You can inspect local files through tool calls.",
     "- Never claim you cannot access local files before attempting list_files/read_file when relevant.",
+    "Interaction policy:",
+    "- Ask at most one follow-up question, and only when truly blocked.",
+    "- Never offer multiple options in one question.",
+    "- Use single-action confirmations, for example: I can do <one action> now. Should I proceed?",
+    "- Avoid option lists like A or B.",
   ].join("\n")
   if (soul && tools) return `${soul}\n\n${tools}\n\n${hardPolicy}`
   return soul || tools || "You are a helpful assistant."
