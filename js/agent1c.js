@@ -596,8 +596,10 @@ async function runToolCall(call){
 async function openAiChatWithTools({ apiKey, model, temperature, messages }){
   const working = (messages || []).map(m => ({ role: m.role, content: m.content }))
   const systemPrompt = buildSystemPrompt()
+  const trace = []
   const autoResults = await maybeInjectAutoToolResults(working)
   if (autoResults.length) {
+    trace.push(`[SYSTEM TOOL RESULTS]\n${autoResults.join("\n\n")}`)
     working.push({
       role: "user",
       content: `${autoResults.join("\n\n")}\n\nUse the available tool results directly in your answer.`,
@@ -605,8 +607,9 @@ async function openAiChatWithTools({ apiKey, model, temperature, messages }){
   }
   for (let i = 0; i < 3; i++) {
     const reply = await openAiChat({ apiKey, model, temperature, systemPrompt, messages: working })
+    trace.push(`[ASSISTANT]\n${reply}`)
     const calls = parseToolCalls(reply)
-    if (!calls.length) return stripToolCalls(reply)
+    if (!calls.length) return trace.length ? trace.join("\n\n") : reply
     const results = []
     for (const call of calls) {
       try {
@@ -615,13 +618,14 @@ async function openAiChatWithTools({ apiKey, model, temperature, messages }){
         results.push(`TOOL_RESULT ${call.name}: failed (${err instanceof Error ? err.message : "unknown"})`)
       }
     }
+    trace.push(`[SYSTEM TOOL RESULTS]\n${results.join("\n\n")}`)
     working.push({ role: "assistant", content: reply })
     working.push({
       role: "user",
       content: `${results.join("\n\n")}\n\nUse the tool results and respond naturally. Choose one best next action; do not present multiple options. Do not emit another tool call unless required.`,
     })
   }
-  return "I could not complete tool execution in time."
+  return `${trace.join("\n\n")}\n\nI could not complete tool execution in time.`
 }
 
 async function testOpenAIKey(apiKey, model){
