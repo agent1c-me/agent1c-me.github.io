@@ -78,6 +78,10 @@ Policy:
 `
 
 const FALLBACK_OPENAI_MODELS = [
+  "gpt-5",
+  "gpt-5-mini",
+  "gpt-5-nano",
+  "gpt-5-1-codex",
   "gpt-4.1",
   "gpt-4.1-mini",
   "gpt-4.1-nano",
@@ -117,7 +121,7 @@ const appState = {
   lastUserSeenAt: Date.now(),
   awayStatusSentAt: 0,
   config: {
-    model: "gpt-4.1-mini",
+    model: "gpt-5",
     heartbeatIntervalMs: 60000,
     maxContextMessages: 16,
     temperature: 0.4,
@@ -150,6 +154,7 @@ let openAiEditing = false
 let telegramEditing = false
 let docsAutosaveTimer = null
 let loopTimingSaveTimer = null
+let configAutosaveTimer = null
 let fsScanDebounceTimer = null
 let fsScanRunning = false
 let knownFilesystemFiles = new Map()
@@ -1084,6 +1089,19 @@ function scheduleLoopTimingAutosave(){
   }, 250)
 }
 
+function scheduleConfigAutosave(){
+  if (configAutosaveTimer) clearTimeout(configAutosaveTimer)
+  configAutosaveTimer = setTimeout(async () => {
+    try {
+      saveDraftFromInputs()
+      await persistState()
+      refreshUi()
+      setStatus("Settings saved.")
+    } catch {}
+    configAutosaveTimer = null
+  }, 250)
+}
+
 function setStatus(text){
   if (els.setupStatus) els.setupStatus.textContent = text
   if (els.unlockStatus) els.unlockStatus.textContent = text
@@ -1803,6 +1821,21 @@ function wireMainDom(){
     if (!els.loopHeartbeatMinInput) return
     els.loopHeartbeatMinInput.stepDown(1)
     scheduleLoopTimingAutosave()
+  })
+  els.modelInput?.addEventListener("change", () => {
+    scheduleConfigAutosave()
+  })
+  els.temperatureInput?.addEventListener("change", () => {
+    scheduleConfigAutosave()
+  })
+  els.contextInput?.addEventListener("change", () => {
+    scheduleConfigAutosave()
+  })
+  els.telegramPollInput?.addEventListener("change", () => {
+    scheduleConfigAutosave()
+  })
+  els.telegramEnabledSelect?.addEventListener("change", () => {
+    scheduleConfigAutosave()
   })
 
   if (els.chatForm) {

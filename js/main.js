@@ -83,6 +83,7 @@ async function boot(){
 
   appsMenu.renderAppsMenu();
   appsMenu.renderSavedApps();
+  wm.restoreLayoutSession?.();
   await initAgent1C({ wm });
 
   const toast = document.getElementById("toast");

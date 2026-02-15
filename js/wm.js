@@ -19,10 +19,128 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
   let tileSnapshot = null;
   const LAYOUT_MIN_W = 160;
   const LAYOUT_MIN_H = 96;
+  const WINDOW_LAYOUT_KEY = "hedgey_window_layout_v1";
+  let layoutSaveTimer = null;
+  let suppressLayoutSave = false;
+  let loadedLayoutSnapshot = null;
+  let pendingPanelLayouts = new Map();
 
   function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
   function deskRect(){ return desktop.getBoundingClientRect(); }
   function deskSize(){ return { w: desktop.clientWidth, h: desktop.clientHeight }; }
+  function readLayoutSnapshot(){
+    try {
+      const raw = localStorage.getItem(WINDOW_LAYOUT_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+  function writeLayoutSnapshot(snapshot){
+    try {
+      localStorage.setItem(WINDOW_LAYOUT_KEY, JSON.stringify(snapshot));
+    } catch {}
+  }
+  function getWindowRect(st){
+    const win = st?.win;
+    if (!win) return null;
+    const left = parseFloat(win.style.left) || win.offsetLeft || 0;
+    const top = parseFloat(win.style.top) || win.offsetTop || 0;
+    const width = parseFloat(win.style.width) || win.offsetWidth || 360;
+    const height = parseFloat(win.style.height) || win.offsetHeight || 240;
+    return { left, top, width, height };
+  }
+  function scheduleLayoutSave(){
+    if (suppressLayoutSave) return;
+    if (layoutSaveTimer) clearTimeout(layoutSaveTimer);
+    layoutSaveTimer = setTimeout(() => {
+      const snapshot = {
+        version: 1,
+        windows: [],
+        panels: {},
+      };
+      for (const [panelId, layout] of pendingPanelLayouts.entries()){
+        snapshot.panels[panelId] = { ...layout };
+      }
+      for (const [, st] of state.entries()){
+        const rect = getWindowRect(st);
+        if (!rect) continue;
+        const base = {
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height,
+          minimized: !!st.minimized,
+          maximized: !!st.maximized,
+          zIndex: parseInt(st.win.style.zIndex || "0", 10) || 0,
+          restoreRect: st.restoreRect || null,
+        };
+        if (st.panelId) {
+          snapshot.panels[st.panelId] = base;
+          continue;
+        }
+        if (!st.restoreType) continue;
+        snapshot.windows.push({
+          ...base,
+          spawn: {
+            type: st.restoreType,
+            title: st.title || "",
+            url: st.url || "",
+            notesFileId: st.notesFileId || "",
+          },
+        });
+      }
+      writeLayoutSnapshot(snapshot);
+    }, 120);
+  }
+  function applyLayoutToWindow(id, saved){
+    const st = state.get(id);
+    if (!st || !saved) return;
+    if (typeof saved.left === "number") st.win.style.left = `${saved.left}px`;
+    if (typeof saved.top === "number") st.win.style.top = `${saved.top}px`;
+    if (typeof saved.width === "number") st.win.style.width = `${saved.width}px`;
+    if (typeof saved.height === "number") st.win.style.height = `${saved.height}px`;
+    st.maximized = !!saved.maximized;
+    st.restoreRect = saved.restoreRect || null;
+    st.minimized = !!saved.minimized;
+    st.win.style.display = st.minimized ? "none" : "grid";
+    if (typeof saved.zIndex === "number" && saved.zIndex > 0) {
+      st.win.style.zIndex = String(saved.zIndex);
+      zTop = Math.max(zTop, saved.zIndex);
+    }
+  }
+  function loadPendingPanelLayouts(){
+    loadedLayoutSnapshot = loadedLayoutSnapshot || readLayoutSnapshot() || { windows: [], panels: {} };
+    const panels = loadedLayoutSnapshot.panels || {};
+    pendingPanelLayouts = new Map(Object.entries(panels));
+  }
+  function restoreNonAgentWindowsFromSnapshot(){
+    loadedLayoutSnapshot = loadedLayoutSnapshot || readLayoutSnapshot();
+    if (!loadedLayoutSnapshot?.windows?.length) return;
+    suppressLayoutSave = true;
+    try {
+      for (const rec of loadedLayoutSnapshot.windows) {
+        const spawn = rec?.spawn || {};
+        let id = null;
+        if (spawn.type === "files") id = createFilesWindow();
+        else if (spawn.type === "browser") id = createBrowserWindow();
+        else if (spawn.type === "themes") id = createThemesWindow();
+        else if (spawn.type === "terminal") id = createTerminalWindow();
+        else if (spawn.type === "notes") id = createNotesWindow(spawn.notesFileId ? { fileId: spawn.notesFileId } : null);
+        else if (spawn.type === "app" && spawn.url) id = createAppWindow(spawn.title || "App", spawn.url);
+        if (!id) continue;
+        applyLayoutToWindow(id, rec);
+      }
+    } finally {
+      suppressLayoutSave = false;
+      refreshIcons();
+      refreshOpenWindowsMenu();
+      scheduleLayoutSave();
+    }
+  }
   function getIconReserveHeight(){
     const iconCount = iconLayer?.querySelectorAll(".desk-icon")?.length || 0;
     if (!iconCount) return 0;
@@ -164,6 +282,7 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     st.win.style.display = "none";
     refreshOpenWindowsMenu();
     refreshIcons();
+    scheduleLayoutSave();
   }
 
   function restore(id){
@@ -173,6 +292,7 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     st.win.style.display = "grid";
     refreshOpenWindowsMenu();
     refreshIcons();
+    scheduleLayoutSave();
   }
 
   function close(id){
@@ -191,6 +311,7 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
 
     refreshOpenWindowsMenu();
     refreshIcons();
+    scheduleLayoutSave();
   }
 
   function applyDefaultSize(win){
@@ -239,6 +360,7 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     }
     focus(id);
     refreshIcons();
+    scheduleLayoutSave();
   }
 
   function dragBounds(){
@@ -323,6 +445,7 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
       win.style.top = currentTop + "px";
       win.style.transform = "";
       win.style.willChange = "";
+      scheduleLayoutSave();
     };
     bar.addEventListener("pointerup", endDrag);
     bar.addEventListener("pointercancel", endDrag);
@@ -371,8 +494,17 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
       win.style.height = newH + "px";
     }, { passive: false });
 
-    grip.addEventListener("pointerup", () => resizing = false);
+    grip.addEventListener("pointerup", () => {
+      if (!resizing) return;
+      resizing = false;
+      scheduleLayoutSave();
+    });
     grip.addEventListener("pointercancel", () => resizing = false);
+    grip.addEventListener("lostpointercapture", () => {
+      if (!resizing) return;
+      resizing = false;
+      scheduleLayoutSave();
+    });
   }
 
   function buildFinderRows(tbody, rows){
@@ -949,6 +1081,10 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
       restoreRect: null,
       title: getTitle(win),
       kind: extra?.kind || "window",
+      restoreType: extra?.restoreType || "",
+      url: extra?.url || "",
+      notesFileId: extra?.notesOpts?.fileId ? String(extra.notesOpts.fileId) : "",
+      panelId: extra?.panelId || "",
       createdAt: Date.now() + idSeq
     };
     state.set(id, st);
@@ -967,27 +1103,32 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     if (tpl === themesTpl) wireThemesUI(win);
 
     st.title = getTitle(win);
+    if (st.panelId && pendingPanelLayouts.has(st.panelId)) {
+      applyLayoutToWindow(id, pendingPanelLayouts.get(st.panelId));
+      pendingPanelLayouts.delete(st.panelId);
+    }
     focus(id);
     refreshOpenWindowsMenu();
     refreshIcons();
+    scheduleLayoutSave();
 
     return id;
   }
 
   function createFilesWindow(){
-    return spawn(finderTpl, "Files", { kind: "files" });
+    return spawn(finderTpl, "Files", { kind: "files", restoreType: "files" });
   }
 
   function createBrowserWindow(){
-    return spawn(browserTpl, "Browser", { kind: "browser" });
+    return spawn(browserTpl, "Browser", { kind: "browser", restoreType: "browser" });
   }
 
   function createAppWindow(title, url){
-    return spawn(appTpl, title, { kind: "app", url });
+    return spawn(appTpl, title, { kind: "app", url, restoreType: "app" });
   }
 
   function createNotesWindow(notesOpts){
-    return spawn(notesTpl, "Notes", { kind: "notes", notesOpts: notesOpts || null });
+    return spawn(notesTpl, "Notes", { kind: "notes", notesOpts: notesOpts || null, restoreType: "notes" });
   }
 
   async function openFileById(fileId){
@@ -1061,11 +1202,11 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
   }
 
   function createTerminalWindow(){
-    return spawn(appTpl, "Terminal", { kind: "app", url: "apps/terminal/index.html" });
+    return spawn(appTpl, "Terminal", { kind: "app", url: "apps/terminal/index.html", restoreType: "terminal" });
   }
 
   function createThemesWindow(){
-    return spawn(themesTpl, "Themes", { kind: "app" });
+    return spawn(themesTpl, "Themes", { kind: "app", restoreType: "themes" });
   }
 
   function clearTileSnapshot(){
@@ -1202,6 +1343,7 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
 
     refreshIcons();
     refreshOpenWindowsMenu();
+    scheduleLayoutSave();
   }
 
   function createAgentPanelWindow(title, opts = {}){
@@ -1239,6 +1381,16 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
 
     const panelRoot = st.win.querySelector("[data-agent-panel]");
     if (panelRoot && opts.panelId) panelRoot.dataset.panelId = opts.panelId;
+    const stEntry = state.get(id);
+    if (stEntry && opts.panelId) {
+      stEntry.panelId = opts.panelId;
+      stEntry.restoreType = "";
+      if (pendingPanelLayouts.has(opts.panelId)) {
+        applyLayoutToWindow(id, pendingPanelLayouts.get(opts.panelId));
+        pendingPanelLayouts.delete(opts.panelId);
+      }
+      scheduleLayoutSave();
+    }
     focus(id);
     refreshIcons();
     return { id, win: st.win, panelRoot };
@@ -1247,7 +1399,10 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
   window.addEventListener("resize", () => {
     refreshIcons();
     refreshOpenWindowsMenu();
+    scheduleLayoutSave();
   });
+
+  loadPendingPanelLayouts();
 
   return {
     createFilesWindow,
@@ -1264,5 +1419,6 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     refreshIcons,
     focus,
     restore,
+    restoreLayoutSession: restoreNonAgentWindowsFromSnapshot,
   };
 }
