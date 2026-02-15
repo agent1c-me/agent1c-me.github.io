@@ -2115,10 +2115,11 @@ function wireMainDom(){
     if (!thread) return
     thread.messages = []
     thread.updatedAt = Date.now()
-    if (isChatOneLocalThread(thread)) {
-      const bootMsg = await buildChatOneBootSystemMessage()
-      pushLocalMessage(thread.id, "user", bootMsg)
-    }
+    // Temporarily disabled: injecting Chat 1 boot system message on clear.
+    // if (isChatOneLocalThread(thread)) {
+    //   const bootMsg = await buildChatOneBootSystemMessage()
+    //   pushLocalMessage(thread.id, "user", bootMsg)
+    // }
     await setState({ ...appState.agent })
     await addEvent("chat_cleared", `Cleared context for ${thread.label}`)
     renderChat()
