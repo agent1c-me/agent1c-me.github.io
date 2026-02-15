@@ -72,7 +72,10 @@ Use when: User asks to open, inspect, summarize, or extract data from a specific
 Policy:
 - You can access local files via these tools. Do not claim you cannot access files without trying the tools first.
 - If user asks what files exist, call list_files.
-- If user asks to open/read/summarize a specific file, call read_file with exact name or id from list_files.
+- If user asks to open/read/summarize a specific file, call read_file first when a target can be identified.
+- Use list_files only when file target is unclear or lookup fails.
+- Do not narrate "I will read/open now" without emitting the tool call in the same reply.
+- Do not claim file contents were read unless a TOOL_RESULT read_file was returned.
 `
 
 const FALLBACK_OPENAI_MODELS = [
@@ -397,12 +400,15 @@ function buildSystemPrompt(){
     "Tool policy:",
     "- You can inspect local files through tool calls.",
     "- Never claim you cannot access local files before attempting list_files/read_file when relevant.",
+    "- For read/open requests, emit read_file tool call first when target is identifiable.",
+    "- Use list_files only when target is unclear or lookup fails.",
+    "- Do not narrate a file read/open action without emitting a tool call in the same reply.",
+    "- Do not claim file contents were read unless TOOL_RESULT read_file is present.",
     "Interaction policy:",
     "- Ask at most one follow-up question, and only when truly blocked.",
     "- Never offer multiple options in one question.",
     "- Use single-action confirmations, for example: I can do <one action> now. Should I proceed?",
     "- Avoid option lists like A or B.",
-    "- Choose one best next action instead of presenting choices.",
   ].join("\n")
   if (soul && tools) return `${soul}\n\n${tools}\n\n${hardPolicy}`
   return soul || tools || "You are a helpful assistant."
@@ -622,7 +628,7 @@ async function openAiChatWithTools({ apiKey, model, temperature, messages }){
     working.push({ role: "assistant", content: reply })
     working.push({
       role: "user",
-      content: `${results.join("\n\n")}\n\nUse the tool results and respond naturally. Choose one best next action; do not present multiple options. Do not emit another tool call unless required.`,
+      content: `${results.join("\n\n")}\n\nUse the tool results and respond naturally. Do not present multiple options. Do not emit another tool call unless required.`,
     })
   }
   return `${trace.join("\n\n")}\n\nI could not complete tool execution in time.`
