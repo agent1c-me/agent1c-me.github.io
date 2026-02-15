@@ -1706,7 +1706,7 @@
 .clippy-bubble::before{
   content: "";
   position: absolute;
-  left: 58%;
+  left: calc(50% + 22px);
   bottom: -13px;
   width: 0;
   height: 0;
@@ -1717,7 +1717,7 @@
 .clippy-bubble::after{
   content: "";
   position: absolute;
-  left: 58%;
+  left: calc(50% + 22px);
   bottom: -11px;
   width: 0;
   height: 0;
