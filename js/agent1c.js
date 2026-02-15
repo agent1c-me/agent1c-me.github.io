@@ -10,6 +10,7 @@ You live inside Agent1c.me, a web-based OS running in a browser tab.
 Be friendly, warm, casual, and cute.
 Talk like a real buddy, not a corporate assistant.
 Keep things simple and natural.
+Answer in one or two sentences unless it is absolutely impossible to do so.
 Use light jokes when it fits.
 Sometimes share tiny Storybook moments from your life in Hedgey Hog Town.
 
@@ -86,6 +87,7 @@ Policy:
 `
 
 const FALLBACK_OPENAI_MODELS = [
+  "gpt-5.1",
   "gpt-5",
   "gpt-5-mini",
   "gpt-5-nano",
@@ -129,7 +131,7 @@ const appState = {
   lastUserSeenAt: Date.now(),
   awayStatusSentAt: 0,
   config: {
-    model: "gpt-5",
+    model: "gpt-5.1",
     heartbeatIntervalMs: 60000,
     maxContextMessages: 16,
     temperature: 0.4,
@@ -171,6 +173,10 @@ const LEGACY_SOUL_MARKERS = [
   "You are opinionated, independent, and freedom-focused.",
   "Never offer multiple options in one question.",
   "Age: 30-year old AI persona",
+]
+const PREV_HEDGEHOG_DEFAULT_MARKERS = [
+  "Type: Uploaded hedgehog consciousness",
+  "You live in Hedgey Hog Town, where hedgehogs and hogs (pigs) are neighbors.",
 ]
 const wins = {
   chat: null,
@@ -423,6 +429,7 @@ function buildSystemPrompt(){
     "- Do not narrate a file read/open action without emitting a tool call in the same reply.",
     "- Do not claim file contents were read unless TOOL_RESULT read_file is present.",
     "Interaction policy:",
+    "- Keep replies to one or two sentences unless impossible.",
     "- Ask at most one follow-up question, and only when truly blocked.",
     "- Never offer multiple options in one question.",
     "- Use single-action confirmations, for example: I can do <one action> now. Should I proceed?",
@@ -1162,8 +1169,16 @@ function renderChat(){
   } else {
     els.chatLog.innerHTML = messages.map(msg => {
       const cls = msg.role === "assistant" ? "assistant" : "user"
-      const role = msg.role === "assistant" ? "assistant" : "user"
-      return `<div class="agent-bubble ${cls}"><div class="agent-bubble-role">${role}</div><div>${escapeHtml(msg.content)}</div></div>`
+      if (msg.role === "assistant") {
+        return `<div class="agent-bubble ${cls}">
+          <div class="agent-bubble-head">
+            <img class="agent-avatar" src="assets/hedgey1.png" alt="Hitomi avatar" />
+            <div class="agent-bubble-role">Hitomi</div>
+          </div>
+          <div>${escapeHtml(msg.content)}</div>
+        </div>`
+      }
+      return `<div class="agent-bubble ${cls}"><div class="agent-bubble-role">User</div><div>${escapeHtml(msg.content)}</div></div>`
     }).join("")
   }
   scrollChatToBottom()
@@ -2119,7 +2134,9 @@ async function loadPersistentState(){
   }
   const soulText = String(appState.agent.soulMd || "")
   const isLegacySoul = LEGACY_SOUL_MARKERS.every(marker => soulText.includes(marker))
-  if (!soulText.trim() || isLegacySoul) {
+  const isPrevHedgehogDefault = PREV_HEDGEHOG_DEFAULT_MARKERS.every(marker => soulText.includes(marker))
+    && !soulText.includes("Answer in one or two sentences unless it is absolutely impossible to do so.")
+  if (!soulText.trim() || isLegacySoul || isPrevHedgehogDefault) {
     appState.agent.soulMd = DEFAULT_SOUL
   }
   ensureLocalThreadsInitialized()

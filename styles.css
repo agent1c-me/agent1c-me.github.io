@@ -1659,6 +1659,15 @@
 .agent-bubble{ margin: 6px; padding: 5px 6px; border: 1px solid var(--line); font-size: 11px; line-height: 1.35; }
 .agent-bubble.user{ background: rgba(255,240,220,0.55); }
 .agent-bubble.assistant{ background: rgba(220,245,230,0.55); }
+.agent-bubble-head{ display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+.agent-avatar{
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--line);
+  image-rendering: pixelated;
+  object-fit: cover;
+  background: #fff;
+}
 .agent-bubble-role{ font-size: 10px; opacity: 0.8; margin-bottom: 2px; text-transform: uppercase; }
 .agent-events{ height: 100%; overflow: auto; border: 1px solid var(--line); background: rgba(255,255,255,0.35); }
 .agent-event{ border-bottom: 1px solid var(--line); padding: 6px; font-size: 11px; }
