@@ -821,7 +821,7 @@ async function buildChatOneBootSystemMessage(){
     "This environment is local-first and runs inside a browser tab.",
     "Current local filesystem files:",
     filesText,
-    "Acknowledge this context naturally. Choose one best next action and state it.",
+    "Acknowledge this context naturally.",
   ].join("\n")
 }
 
@@ -903,7 +903,7 @@ async function handleFilesystemUploadNotice(uploadedFiles){
   const prompt = [
     "System Message: User has uploaded new file(s) into your filesystem.",
     ...files.map(file => `- ${fileMetaLabel(file)}`),
-    "For now, reply normally to acknowledge this. Choose one best next action and state it.",
+    "For now, reply normally to acknowledge this.",
   ].join("\n")
   pushRolling("user", prompt)
   const reply = await openAiChatWithTools({
