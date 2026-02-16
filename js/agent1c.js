@@ -261,6 +261,9 @@ function persistPreviewProviderState(){
 function refreshProviderPreviewUi(){
   const active = previewProviderState.active
   const editor = previewProviderState.editor
+  const hasAnthropic = Boolean(previewProviderState.anthropicValidated && String(previewProviderState.anthropicKey || "").trim())
+  const hasZai = Boolean(previewProviderState.zaiValidated && String(previewProviderState.zaiKey || "").trim())
+  const hasOllama = Boolean(previewProviderState.ollamaValidated && String(previewProviderState.ollamaBaseUrl || "").trim())
   if (els.aiActiveProviderSelect) els.aiActiveProviderSelect.value = active
   if (els.anthropicKeyInput) els.anthropicKeyInput.value = previewProviderState.anthropicKey
   if (els.anthropicModelInput) els.anthropicModelInput.value = previewProviderState.anthropicModel
@@ -284,17 +287,17 @@ function refreshProviderPreviewUi(){
   if (els.providerSectionZai) els.providerSectionZai.classList.toggle("agent-hidden", editor !== "zai")
   if (els.providerSectionOllama) els.providerSectionOllama.classList.toggle("agent-hidden", editor !== "ollama")
   if (els.anthropicStoredRow && els.anthropicControls) {
-    const showStored = previewProviderState.anthropicValidated && !anthropicEditing
+    const showStored = hasAnthropic && !anthropicEditing
     els.anthropicStoredRow.classList.toggle("agent-hidden", !showStored)
     els.anthropicControls.classList.toggle("agent-hidden", showStored)
   }
   if (els.zaiStoredRow && els.zaiControls) {
-    const showStored = previewProviderState.zaiValidated && !zaiEditing
+    const showStored = hasZai && !zaiEditing
     els.zaiStoredRow.classList.toggle("agent-hidden", !showStored)
     els.zaiControls.classList.toggle("agent-hidden", showStored)
   }
   if (els.ollamaStoredRow && els.ollamaControls) {
-    const showStored = previewProviderState.ollamaValidated && !ollamaEditing
+    const showStored = hasOllama && !ollamaEditing
     els.ollamaStoredRow.classList.toggle("agent-hidden", !showStored)
     els.ollamaControls.classList.toggle("agent-hidden", showStored)
   }
@@ -1677,25 +1680,40 @@ async function refreshBadges(){
   const hasOpenAi = Boolean(await getSecret("openai"))
   const hasTelegram = Boolean(await getSecret("telegram"))
   const selectedProvider = previewProviderState.editor
+  const hasAnthropic = Boolean(previewProviderState.anthropicValidated && String(previewProviderState.anthropicKey || "").trim())
+  const hasZai = Boolean(previewProviderState.zaiValidated && String(previewProviderState.zaiKey || "").trim())
+  const hasOllama = Boolean(previewProviderState.ollamaValidated && String(previewProviderState.ollamaBaseUrl || "").trim())
   if (els.openaiBadge) {
     els.openaiBadge.className = `agent-badge ${hasOpenAi ? "ok" : "warn"}`
     els.openaiBadge.textContent = hasOpenAi ? "Saved in vault" : "Missing key"
+  }
+  if (els.anthropicBadge) {
+    els.anthropicBadge.className = `agent-badge ${hasAnthropic ? "ok" : "warn"}`
+    els.anthropicBadge.textContent = hasAnthropic ? "Stored" : "Missing key"
+  }
+  if (els.zaiBadge) {
+    els.zaiBadge.className = `agent-badge ${hasZai ? "ok" : "warn"}`
+    els.zaiBadge.textContent = hasZai ? "Stored" : "Missing key"
+  }
+  if (els.ollamaBadge) {
+    els.ollamaBadge.className = `agent-badge ${hasOllama ? "ok" : "warn"}`
+    els.ollamaBadge.textContent = hasOllama ? "Stored" : "Missing URL"
   }
   if (els.providerPillOpenai) {
     els.providerPillOpenai.className = `agent-provider-pill ${hasOpenAi ? "ok" : "warn"}`
     els.providerPillOpenai.textContent = hasOpenAi ? "Ready" : "Missing key"
   }
   if (els.providerPillAnthropic) {
-    els.providerPillAnthropic.className = `agent-provider-pill ${previewProviderState.anthropicValidated ? "ok" : "warn"}`
-    els.providerPillAnthropic.textContent = previewProviderState.anthropicValidated ? "Ready" : "Missing key"
+    els.providerPillAnthropic.className = `agent-provider-pill ${hasAnthropic ? "ok" : "warn"}`
+    els.providerPillAnthropic.textContent = hasAnthropic ? "Ready" : "Missing key"
   }
   if (els.providerPillZai) {
-    els.providerPillZai.className = `agent-provider-pill ${previewProviderState.zaiValidated ? "ok" : "warn"}`
-    els.providerPillZai.textContent = previewProviderState.zaiValidated ? "Ready" : "Missing key"
+    els.providerPillZai.className = `agent-provider-pill ${hasZai ? "ok" : "warn"}`
+    els.providerPillZai.textContent = hasZai ? "Ready" : "Missing key"
   }
   if (els.providerPillOllama) {
-    els.providerPillOllama.className = `agent-provider-pill ${previewProviderState.ollamaValidated ? "ok" : "warn"}`
-    els.providerPillOllama.textContent = previewProviderState.ollamaValidated ? "Ready" : "Missing URL"
+    els.providerPillOllama.className = `agent-provider-pill ${hasOllama ? "ok" : "warn"}`
+    els.providerPillOllama.textContent = hasOllama ? "Ready" : "Missing URL"
   }
   if (els.telegramBadge) {
     els.telegramBadge.className = `agent-badge ${hasTelegram ? "ok" : "warn"}`
@@ -1932,7 +1950,7 @@ function openAiWindowHtml(){
               </div>
               <div id="anthropicControls">
                 <div class="agent-row agent-row-tight">
-                  <span class="agent-note">Anthropic key</span>
+                  <span class="agent-note">Anthropic key <span id="anthropicBadge" class="agent-badge warn">Missing key</span></span>
                   <div class="agent-inline-key agent-inline-key-wide">
                     <input id="anthropicKeyInput" class="field" type="password" placeholder="sk-ant-..." />
                     <button id="anthropicSavePreviewBtn" class="btn agent-inline-key-btn" type="button" aria-label="Test Anthropic key">></button>
@@ -1959,7 +1977,7 @@ function openAiWindowHtml(){
               </div>
               <div id="zaiControls">
                 <div class="agent-row agent-row-tight">
-                  <span class="agent-note">z.ai API key</span>
+                  <span class="agent-note">z.ai API key <span id="zaiBadge" class="agent-badge warn">Missing key</span></span>
                   <div class="agent-inline-key agent-inline-key-wide">
                     <input id="zaiKeyInput" class="field" type="password" placeholder="zai-..." />
                     <button id="zaiSavePreviewBtn" class="btn agent-inline-key-btn" type="button" aria-label="Test z.ai key">></button>
@@ -1986,7 +2004,7 @@ function openAiWindowHtml(){
               </div>
               <div id="ollamaControls">
                 <div class="agent-row agent-row-tight">
-                  <span class="agent-note">Ollama URL</span>
+                  <span class="agent-note">Ollama URL <span id="ollamaBadge" class="agent-badge warn">Missing URL</span></span>
                   <div class="agent-inline-key agent-inline-key-wide">
                     <input id="ollamaBaseUrlInput" class="field" type="text" placeholder="http://localhost:11434" />
                     <button id="ollamaSavePreviewBtn" class="btn agent-inline-key-btn" type="button" aria-label="Test Ollama endpoint">></button>
@@ -2154,6 +2172,7 @@ function cacheElements(){
     anthropicStoredRow: byId("anthropicStoredRow"),
     anthropicControls: byId("anthropicControls"),
     anthropicKeyInput: byId("anthropicKeyInput"),
+    anthropicBadge: byId("anthropicBadge"),
     anthropicModelInput: byId("anthropicModelInput"),
     anthropicModelStored: byId("anthropicModelStored"),
     anthropicSavePreviewBtn: byId("anthropicSavePreviewBtn"),
@@ -2161,6 +2180,7 @@ function cacheElements(){
     zaiStoredRow: byId("zaiStoredRow"),
     zaiControls: byId("zaiControls"),
     zaiKeyInput: byId("zaiKeyInput"),
+    zaiBadge: byId("zaiBadge"),
     zaiModelInput: byId("zaiModelInput"),
     zaiModelStored: byId("zaiModelStored"),
     zaiSavePreviewBtn: byId("zaiSavePreviewBtn"),
@@ -2168,6 +2188,7 @@ function cacheElements(){
     ollamaStoredRow: byId("ollamaStoredRow"),
     ollamaControls: byId("ollamaControls"),
     ollamaBaseUrlInput: byId("ollamaBaseUrlInput"),
+    ollamaBadge: byId("ollamaBadge"),
     ollamaModelInput: byId("ollamaModelInput"),
     ollamaModelStored: byId("ollamaModelStored"),
     ollamaSavePreviewBtn: byId("ollamaSavePreviewBtn"),
@@ -2463,10 +2484,10 @@ function wireProviderPreviewDom(){
       return
     }
     const isReady = provider === "anthropic"
-      ? previewProviderState.anthropicValidated
+      ? Boolean(previewProviderState.anthropicValidated && String(previewProviderState.anthropicKey || "").trim())
       : provider === "zai"
-        ? previewProviderState.zaiValidated
-        : previewProviderState.ollamaValidated
+        ? Boolean(previewProviderState.zaiValidated && String(previewProviderState.zaiKey || "").trim())
+        : Boolean(previewProviderState.ollamaValidated && String(previewProviderState.ollamaBaseUrl || "").trim())
     if (!isReady) {
       setPreviewProviderEditor(provider)
       if (els.aiActiveProviderSelect) els.aiActiveProviderSelect.value = previewProviderState.active
@@ -2479,13 +2500,18 @@ function wireProviderPreviewDom(){
 
   els.anthropicSavePreviewBtn?.addEventListener("click", async () => {
     previewProviderState.anthropicKey = String(els.anthropicKeyInput?.value || "").trim()
-    previewProviderState.anthropicValidated = true
+    previewProviderState.anthropicValidated = previewProviderState.anthropicKey.length > 0
     anthropicEditing = false
-    setActivePreviewProvider("anthropic")
+    if (previewProviderState.anthropicValidated) setActivePreviewProvider("anthropic")
+    else setPreviewProviderEditor("anthropic")
     persistPreviewProviderState()
     refreshProviderPreviewUi()
-    await addEvent("provider_preview_saved", "Anthropic key tested (preview validation accepted).")
-    setStatus(`Anthropic key tested. Active provider switched to anthropic (${previewProviderState.anthropicModel}).`)
+    if (previewProviderState.anthropicValidated) {
+      await addEvent("provider_preview_saved", "Anthropic key tested (preview validation accepted).")
+      setStatus(`Anthropic key tested. Active provider switched to anthropic (${previewProviderState.anthropicModel}).`)
+    } else {
+      setStatus("Anthropic key missing.")
+    }
   })
   els.anthropicEditBtn?.addEventListener("click", () => {
     anthropicEditing = true
@@ -2495,13 +2521,18 @@ function wireProviderPreviewDom(){
 
   els.zaiSavePreviewBtn?.addEventListener("click", async () => {
     previewProviderState.zaiKey = String(els.zaiKeyInput?.value || "").trim()
-    previewProviderState.zaiValidated = true
+    previewProviderState.zaiValidated = previewProviderState.zaiKey.length > 0
     zaiEditing = false
-    setActivePreviewProvider("zai")
+    if (previewProviderState.zaiValidated) setActivePreviewProvider("zai")
+    else setPreviewProviderEditor("zai")
     persistPreviewProviderState()
     refreshProviderPreviewUi()
-    await addEvent("provider_preview_saved", "z.ai key tested (preview validation accepted).")
-    setStatus(`z.ai key tested. Active provider switched to z.ai (${previewProviderState.zaiModel}).`)
+    if (previewProviderState.zaiValidated) {
+      await addEvent("provider_preview_saved", "z.ai key tested (preview validation accepted).")
+      setStatus(`z.ai key tested. Active provider switched to z.ai (${previewProviderState.zaiModel}).`)
+    } else {
+      setStatus("z.ai key missing.")
+    }
   })
   els.zaiEditBtn?.addEventListener("click", () => {
     zaiEditing = true
@@ -2559,14 +2590,19 @@ function wireProviderPreviewDom(){
   syncOllamaModel()
 
   els.ollamaSavePreviewBtn?.addEventListener("click", async () => {
-    previewProviderState.ollamaBaseUrl = String(els.ollamaBaseUrlInput?.value || "").trim() || "http://localhost:11434"
-    previewProviderState.ollamaValidated = true
+    previewProviderState.ollamaBaseUrl = String(els.ollamaBaseUrlInput?.value || "").trim()
+    previewProviderState.ollamaValidated = Boolean(String(previewProviderState.ollamaBaseUrl || "").trim())
     ollamaEditing = false
-    setActivePreviewProvider("ollama")
+    if (previewProviderState.ollamaValidated) setActivePreviewProvider("ollama")
+    else setPreviewProviderEditor("ollama")
     persistPreviewProviderState()
     refreshProviderPreviewUi()
-    await addEvent("provider_preview_saved", "Ollama endpoint saved (preview validation accepted).")
-    setStatus(`Ollama endpoint saved. Active provider switched to ollama (${previewProviderState.ollamaModel}).`)
+    if (previewProviderState.ollamaValidated) {
+      await addEvent("provider_preview_saved", "Ollama endpoint saved (preview validation accepted).")
+      setStatus(`Ollama endpoint saved. Active provider switched to ollama (${previewProviderState.ollamaModel}).`)
+    } else {
+      setStatus("Ollama URL missing.")
+    }
   })
   els.ollamaEditBtn?.addEventListener("click", () => {
     ollamaEditing = true

@@ -1691,12 +1691,18 @@
   padding: 6px;
   display: grid;
   gap: 6px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 .agent-provider-cards{
   display: grid;
   gap: 5px;
-  max-height: 148px;
-  overflow: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 .agent-provider-card{
   border: 1px solid var(--line);
@@ -1707,6 +1713,7 @@
   cursor: pointer;
   display: grid;
   gap: 4px;
+  overflow: hidden;
 }
 .agent-provider-card.active{
   outline: 1px dotted var(--line);
@@ -1743,6 +1750,17 @@
   padding-top: 5px;
   display: grid;
   gap: 6px;
+}
+.agent-provider-inline .agent-row-tight{
+  flex-wrap: wrap;
+  align-items: center;
+}
+.agent-provider-inline .agent-inline-key-wide{
+  min-width: 0;
+  flex: 1 1 170px;
+}
+.agent-provider-inline .agent-inline-mini{
+  margin-left: 0;
 }
 .agent-meta-row{
   display: flex;
