@@ -105,6 +105,10 @@ const FALLBACK_OPENAI_MODELS = [
 ]
 
 const FALLBACK_ANTHROPIC_MODELS = [
+  "claude-opus-4-6",
+  "claude-opus-4-5",
+  "claude-sonnet-4-5",
+  "claude-haiku-4-5",
   "claude-opus-4-1",
   "claude-opus-4",
   "claude-3-7-sonnet",
@@ -113,6 +117,8 @@ const FALLBACK_ANTHROPIC_MODELS = [
 ]
 
 const FALLBACK_XAI_MODELS = [
+  "grok-4-0709",
+  "grok-code-fast-1",
   "grok-4",
   "grok-3",
   "grok-3-mini",
@@ -225,10 +231,10 @@ const previewProviderState = {
   editor: "",
   openaiValidated: true,
   anthropicKey: "",
-  anthropicModel: "claude-opus-4-1",
+  anthropicModel: "claude-opus-4-6",
   anthropicValidated: false,
   xaiKey: "",
-  xaiModel: "grok-4",
+  xaiModel: "grok-4-0709",
   xaiValidated: false,
   zaiKey: "",
   zaiModel: "glm-4.7",
