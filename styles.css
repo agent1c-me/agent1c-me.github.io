@@ -1696,11 +1696,6 @@
   background: #e4eefc;
   box-shadow: inset 0 0 0 1px rgba(40,84,173,0.22);
 }
-.agent-provider-card.active .agent-provider-head strong::after{
-  content: " [Selected]";
-  font-size: 10px;
-  opacity: 0.85;
-}
 .agent-provider-head{
   display: flex;
   align-items: center;
