@@ -115,7 +115,7 @@ export function animateWindowCloseMatrix(win, opts = {}){
       { opacity: 1, filter: "brightness(1) blur(0px)", clipPath: "inset(0 0 0 0)" },
       { opacity: 1, filter: "brightness(1.15) blur(0px)", clipPath: "inset(0 0 0 0)" },
       { opacity: 0.88, filter: "brightness(1.05) blur(0.2px)", clipPath: "inset(0 0 0 0)" },
-      { opacity: 0.0, filter: "brightness(0.65) blur(1.2px)", clipPath: "inset(88% 0 0 0)" },
+      { opacity: 0.0, filter: "brightness(0.65) blur(1.2px)", clipPath: "inset(0 0 88% 0)" },
     ],
     { duration, easing: "cubic-bezier(.2,.8,.3,1)", fill: "forwards" },
   );
