@@ -1771,6 +1771,20 @@
   min-width: 84px;
   width: 104px;
 }
+#openaiStoredRow .agent-note,
+#anthropicStoredRow .agent-note,
+#zaiStoredRow .agent-note,
+#ollamaStoredRow .agent-note{
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: normal;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.2;
+  max-height: 2.4em;
+}
 .agent-meta-row{
   display: flex;
   gap: 10px;
