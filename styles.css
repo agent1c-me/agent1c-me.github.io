@@ -1632,6 +1632,10 @@
 .agent-inline-key .field{
   flex: 1 1 auto;
 }
+.agent-inline-key-wide{
+  flex: 1 1 240px;
+  min-width: 180px;
+}
 .agent-inline-key-btn{
   min-width: 22px;
   width: 22px;

@@ -1909,15 +1909,12 @@ function openAiWindowHtml(){
         </label>
       </div>
       <div id="openaiControls">
-        <div class="agent-note">Status: <span id="openaiBadge" class="agent-badge warn">Missing key</span></div>
-        <form id="openaiForm" class="agent-form">
-          <label class="agent-form-label">
-            <span>API key</span>
-            <div class="agent-inline-key">
-              <input id="openaiKeyInput" class="field" type="password" placeholder="sk-..." required />
-              <button id="openaiSaveBtn" class="btn agent-inline-key-btn" type="submit" aria-label="Save OpenAI key">></button>
-            </div>
-          </label>
+        <form id="openaiForm" class="agent-row agent-wrap-row">
+          <span class="agent-note">OpenAI API Key <span id="openaiBadge" class="agent-badge warn">Missing key</span></span>
+          <div class="agent-inline-key agent-inline-key-wide">
+            <input id="openaiKeyInput" class="field" type="password" placeholder="sk-..." required />
+            <button id="openaiSaveBtn" class="btn agent-inline-key-btn" type="submit" aria-label="Save OpenAI key">></button>
+          </div>
           <label class="agent-inline-mini">
             <span>Model</span>
             <select id="modelInputEdit" class="field"></select>
