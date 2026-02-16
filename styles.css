@@ -1692,7 +1692,14 @@
 }
 .agent-provider-card.active{
   outline: 1px dotted var(--line);
-  background: rgba(255,255,255,0.46);
+  border-color: var(--os-blue);
+  background: #e4eefc;
+  box-shadow: inset 0 0 0 1px rgba(40,84,173,0.22);
+}
+.agent-provider-card.active .agent-provider-head strong::after{
+  content: " [Selected]";
+  font-size: 10px;
+  opacity: 0.85;
 }
 .agent-provider-head{
   display: flex;
@@ -1927,7 +1934,9 @@ body.dark .agent-provider-card{
   border-color: #555d6b;
 }
 body.dark .agent-provider-card.active{
+  border-color: #89a7df;
   background: #273146;
+  box-shadow: inset 0 0 0 1px rgba(161,189,242,0.3);
 }
 body.dark .agent-provider-pill{
   background: #2b3445;

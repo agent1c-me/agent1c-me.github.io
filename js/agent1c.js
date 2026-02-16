@@ -2351,8 +2351,9 @@ function wireProviderPreviewDom(){
         ? previewProviderState.zaiValidated
         : previewProviderState.ollamaValidated
     if (!isReady) {
+      setPreviewProviderEditor(provider)
       if (els.aiActiveProviderSelect) els.aiActiveProviderSelect.value = previewProviderState.active
-      setStatus(`Test ${provider === "ollama" ? "Ollama endpoint" : `${provider} key`} first, then active provider can switch.`)
+      setStatus(`${provider} selected for editing. Test ${provider === "ollama" ? "Ollama endpoint" : `${provider} key`} to switch active provider.`)
       return
     }
     setActivePreviewProvider(provider)
