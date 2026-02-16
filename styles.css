@@ -1805,6 +1805,7 @@
 }
 .agent-setup-stack{
   overflow: auto;
+  overflow-x: hidden;
   min-height: 0;
   padding-right: 2px;
   gap: 8px;
@@ -1836,6 +1837,7 @@
 .agent-device-panel{
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 .agent-setup-section{
   border: 1px solid var(--line);
@@ -1843,6 +1845,7 @@
   padding: 8px;
   display: grid;
   gap: 7px;
+  min-width: 0;
 }
 .agent-setup-title{
   font-size: 12px;
@@ -1851,21 +1854,28 @@
 .agent-code-card{
   border: 1px solid var(--line);
   background: rgba(255,255,255,0.55);
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 .agent-code-head{
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
   border-bottom: 1px solid rgba(0,0,0,0.12);
   padding: 4px 6px;
   background: rgba(0,0,0,0.04);
+  min-width: 0;
 }
 .agent-code-label{
   font-size: 10px;
   text-transform: uppercase;
   opacity: 0.88;
   letter-spacing: 0.2px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 .agent-copy-btn{
   min-width: 42px;
@@ -1873,6 +1883,8 @@
   padding: 0 6px;
   font-size: 10px;
   line-height: 1.1;
+  margin-left: auto;
+  flex: 0 0 auto;
 }
 .agent-setup-code{
   margin: 0;
@@ -1881,10 +1893,13 @@
   padding: 8px;
   font-size: 11px;
   line-height: 1.35;
-  white-space: pre;
-  overflow-x: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  overflow-x: hidden;
   overflow-y: hidden;
   font-family: "Monaco", "Consolas", "Courier New", monospace;
+  min-width: 0;
 }
 .agent-meta-row{
   display: flex;
