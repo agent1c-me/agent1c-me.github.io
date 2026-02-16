@@ -2336,6 +2336,7 @@ function setPreviewProviderEditor(provider){
   previewProviderState.editor = provider
   persistPreviewProviderState()
   refreshProviderPreviewUi()
+  refreshBadges().catch(() => {})
 }
 
 function setActivePreviewProvider(provider){
@@ -2344,6 +2345,7 @@ function setActivePreviewProvider(provider){
   previewProviderState.editor = provider
   persistPreviewProviderState()
   refreshProviderPreviewUi()
+  refreshBadges().catch(() => {})
 }
 
 function isLikelyUrl(value){
