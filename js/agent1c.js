@@ -2818,7 +2818,7 @@ async function createWorkspace({ showUnlock, onboarding }) {
   wins.openai = wmRef.createAgentPanelWindow("AI APIs", { panelId: "openai", left: 510, top: 28, width: 500, height: 320 })
   if (wins.openai?.panelRoot) wins.openai.panelRoot.innerHTML = openAiWindowHtml()
   if (wins.openai?.win) {
-    wins.openai.win.style.minWidth = "430px"
+    wins.openai.win.style.minWidth = "500px"
     wins.openai.win.style.minHeight = "260px"
   }
 

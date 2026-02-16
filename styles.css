@@ -1704,13 +1704,15 @@
   overflow: hidden;
 }
 .agent-provider-cards{
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 5px;
   flex: 1 1 auto;
   min-height: 0;
   max-height: none;
   overflow-y: auto;
   overflow-x: hidden;
+  width: 100%;
 }
 .agent-provider-card{
   border: 1px solid var(--line);
@@ -1722,6 +1724,7 @@
   display: grid;
   gap: 4px;
   overflow: hidden;
+  min-width: 0;
 }
 .agent-provider-card.active{
   outline: 1px dotted var(--line);
@@ -1758,17 +1761,31 @@
   padding-top: 5px;
   display: grid;
   gap: 6px;
+  min-width: 0;
+  overflow: hidden;
 }
 .agent-provider-inline .agent-row-tight{
   flex-wrap: wrap;
   align-items: center;
+  min-width: 0;
 }
 .agent-provider-inline .agent-inline-key-wide{
   min-width: 0;
-  flex: 1 1 170px;
+  flex: 1 1 140px;
 }
 .agent-provider-inline .agent-inline-mini{
   margin-left: 0;
+  min-width: 0;
+}
+.agent-provider-inline .agent-inline-mini .field{
+  min-width: 84px;
+  width: 104px;
+}
+.agent-provider-inline .agent-inline-key .field{
+  min-width: 0;
+}
+.agent-provider-inline .agent-note{
+  min-width: 0;
 }
 .agent-meta-row{
   display: flex;
