@@ -3,6 +3,7 @@ import { NOTES_KEY } from "./constants.js";
 import { createDesktopIcons } from "./desktop-icons.js";
 import { loadSavedApps } from "./storage.js";
 import { listFiles, listNotes, getFileById, readNoteText, readFileBlob, saveNote, downloadFile, listDesktopTags, addDesktopTag } from "./filesystem.js";
+import { animateWindowCloseMatrix } from "./window-close-fx.js";
 
 export function createWindowManager({ desktop, iconLayer, templates, openWindowsList, saveDialog, appsMenu, appsMap, theme }){
   const { finderTpl, appTpl, browserTpl, notesTpl, themesTpl } = templates;
@@ -430,9 +431,13 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     scheduleLayoutSave();
   }
 
-  function close(id){
+  async function close(id){
     const st = state.get(id);
     if (!st) return;
+    const win = st.win;
+    if (win && win.isConnected) {
+      await animateWindowCloseMatrix(win, { color: "#ff4fb8" });
+    }
     if (st.emulator) {
       st.emulator.destroy?.();
       st.emulator = null;
