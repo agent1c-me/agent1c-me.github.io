@@ -274,6 +274,10 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     ghost.style.width = `${from.width}px`;
     ghost.style.height = `${from.height}px`;
     ghost.style.margin = "0";
+    ghost.style.minWidth = "0";
+    ghost.style.minHeight = "0";
+    ghost.style.maxWidth = "none";
+    ghost.style.maxHeight = "none";
     ghost.style.zIndex = "9999";
     ghost.style.pointerEvents = "none";
     ghost.style.visibility = "visible";
@@ -322,6 +326,10 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     ghost.style.width = `${from.width}px`;
     ghost.style.height = `${from.height}px`;
     ghost.style.margin = "0";
+    ghost.style.minWidth = "0";
+    ghost.style.minHeight = "0";
+    ghost.style.maxWidth = "none";
+    ghost.style.maxHeight = "none";
     ghost.style.zIndex = "9999";
     ghost.style.pointerEvents = "none";
     ghost.style.visibility = "visible";
