@@ -6,7 +6,7 @@ function normalizeSpaces(text){
 }
 
 function wakeRegex(){
-  return /\b(?:hitomi|hedgey\s+hog)\b/i;
+  return /\b(?:hitomi|hitomy|hidomi|hi\s*to?mi|hedgey[\s-]*hog|hedgy[\s-]*hog|hedgie[\s-]*hog)\b/i;
 }
 
 function extractAfterWake(text){
@@ -39,6 +39,7 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
   let networkErrorWindowStart = 0;
   let lastDispatchedText = "";
   let lastDispatchedAt = 0;
+  let heardHintTimer = null;
   let currentStatus = "off";
   let currentText = "";
   let currentError = "";
@@ -92,8 +93,22 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
     idleCaptureTimer = null;
   }
 
+  function showHeardHint(text){
+    if (!enabled || captureActive) return;
+    if (heardHintTimer) clearTimeout(heardHintTimer);
+    const heard = normalizeSpaces(text);
+    if (!heard) return;
+    setStatus("idle", `Heard: ${heard}`);
+    heardHintTimer = setTimeout(() => {
+      if (!enabled || captureActive) return;
+      setStatus("idle", "Waiting for \"Hitomi\" or \"Hedgey Hog\"");
+    }, 1200);
+  }
+
   function resetCapture(){
     clearCaptureTimers();
+    if (heardHintTimer) clearTimeout(heardHintTimer);
+    heardHintTimer = null;
     captureActive = false;
     captureFinalParts = [];
     captureInterim = "";
@@ -207,7 +222,10 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
         if (!txt) continue;
         if (!captureActive) {
           const afterWake = extractAfterWake(txt);
-          if (afterWake === null) continue;
+          if (afterWake === null) {
+            showHeardHint(txt);
+            continue;
+          }
           captureActive = true;
           captureFinalParts = [];
           captureInterim = "";
