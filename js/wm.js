@@ -259,6 +259,53 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     });
   }
 
+  function animateMinimizeToIcon(id, win){
+    const icon = iconLayer?.querySelector(`.desk-icon[data-win-id="${id}"]`);
+    if (!icon || !win) return Promise.resolve();
+    const from = win.getBoundingClientRect();
+    const to = icon.getBoundingClientRect();
+    if (!from.width || !from.height || !to.width || !to.height) return Promise.resolve();
+
+    const ghost = win.cloneNode(true);
+    ghost.querySelectorAll("iframe").forEach(frame => frame.remove());
+    ghost.style.position = "fixed";
+    ghost.style.left = `${from.left}px`;
+    ghost.style.top = `${from.top}px`;
+    ghost.style.width = `${from.width}px`;
+    ghost.style.height = `${from.height}px`;
+    ghost.style.margin = "0";
+    ghost.style.zIndex = "9999";
+    ghost.style.pointerEvents = "none";
+    ghost.style.opacity = "0.96";
+    ghost.style.transformOrigin = "top left";
+    ghost.style.transition = "transform 180ms ease-in, opacity 180ms ease-in";
+    document.body.appendChild(ghost);
+
+    const sx = Math.max(0.12, to.width / Math.max(1, from.width));
+    const sy = Math.max(0.12, to.height / Math.max(1, from.height));
+    const dx = to.left - from.left;
+    const dy = to.top - from.top;
+
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        ghost.remove();
+        resolve();
+      };
+      const timer = setTimeout(finish, 260);
+      ghost.addEventListener("transitionend", () => {
+        clearTimeout(timer);
+        finish();
+      }, { once: true });
+      requestAnimationFrame(() => {
+        ghost.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+        ghost.style.opacity = "0.25";
+      });
+    });
+  }
+
   function focus(id){
     for (const [wid, st] of state.entries()){
       st.win.classList.toggle("inactive", wid !== id);
@@ -279,10 +326,22 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     const st = state.get(id);
     if (!st || st.minimized) return;
     st.minimized = true;
-    st.win.style.display = "none";
-    refreshOpenWindowsMenu();
     refreshIcons();
-    scheduleLayoutSave();
+    const run = async () => {
+      const win = st.win;
+      if (!win) return;
+      const prevVisibility = win.style.visibility;
+      win.style.visibility = "hidden";
+      try {
+        await animateMinimizeToIcon(id, win);
+      } finally {
+        win.style.display = "none";
+        win.style.visibility = prevVisibility;
+        refreshOpenWindowsMenu();
+        scheduleLayoutSave();
+      }
+    };
+    run();
   }
 
   function restore(id){
