@@ -119,8 +119,8 @@ const FALLBACK_XAI_MODELS = [
 ]
 
 const FALLBACK_ZAI_MODELS = [
-  "glm-5",
   "glm-4.7",
+  "glm-5",
   "glm-4.6",
   "glm-4.6v",
   "glm-4.5",
@@ -231,7 +231,7 @@ const previewProviderState = {
   xaiModel: "grok-4",
   xaiValidated: false,
   zaiKey: "",
-  zaiModel: "glm-5",
+  zaiModel: "glm-4.7",
   zaiValidated: false,
   ollamaBaseUrl: "http://localhost:11434",
   ollamaModel: "llama3.1",
