@@ -647,7 +647,14 @@ async function zaiChat({ apiKey, model, temperature, systemPrompt, messages }){
       messages: [{ role: "system", content: systemPrompt }, ...messages.map(m => ({ role: m.role, content: m.content }))],
     }),
   })
-  if (!response.ok) throw new Error(`z.ai call failed (${response.status})`)
+  if (!response.ok) {
+    let providerMsg = ""
+    try {
+      const errJson = await response.json()
+      providerMsg = String(errJson?.error?.message || "").trim()
+    } catch {}
+    throw new Error(`z.ai call failed (${response.status})${providerMsg ? `: ${providerMsg}` : ""}`)
+  }
   const json = await response.json()
   const text = json?.choices?.[0]?.message?.content
   if (!text) throw new Error("z.ai returned no message.")
