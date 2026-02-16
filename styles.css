@@ -1596,6 +1596,14 @@
 .agent-panel-body{ height: 100%; box-sizing: border-box; display: flex; min-height: 0; }
 .agent-panel{ flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .agent-stack{ display: flex; flex-direction: column; gap: 6px; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.agent-panel[data-panel-id="openai"]{
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.agent-panel[data-panel-id="openai"] .agent-stack{
+  overflow: visible;
+  min-height: 100%;
+}
 .agent-form{ display: flex; flex-direction: column; gap: 6px; }
 .agent-form-label{
   display: flex;

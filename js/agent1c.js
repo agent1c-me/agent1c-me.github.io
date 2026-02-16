@@ -2817,6 +2817,10 @@ async function createWorkspace({ showUnlock, onboarding }) {
 
   wins.openai = wmRef.createAgentPanelWindow("AI APIs", { panelId: "openai", left: 510, top: 28, width: 500, height: 320 })
   if (wins.openai?.panelRoot) wins.openai.panelRoot.innerHTML = openAiWindowHtml()
+  if (wins.openai?.win) {
+    wins.openai.win.style.minWidth = "430px"
+    wins.openai.win.style.minHeight = "260px"
+  }
 
   wins.telegram = wmRef.createAgentPanelWindow("Telegram API", { panelId: "telegram", left: 510, top: 360, width: 500, height: 280 })
   if (wins.telegram?.panelRoot) wins.telegram.panelRoot.innerHTML = telegramWindowHtml()
