@@ -160,7 +160,7 @@ export function animateWindowOpenMatrix(win, opts = {}){
   const color = String(opts.color || "#ff4fb8");
   const glow = String(opts.glow || "rgba(255, 79, 184, 0.65)");
   const duration = Math.max(300, Math.min(900, Number(opts.durationMs) || 520));
-  const revealAt = Math.max(90, Math.floor(duration * 0.58));
+  const revealAt = Math.max(90, Math.floor(duration * 0.42));
 
   const layer = document.createElement("div");
   layer.style.position = "fixed";
@@ -225,8 +225,8 @@ export function animateWindowOpenMatrix(win, opts = {}){
     [
       { opacity: 0.96, clipPath: "inset(0 0 100% 0)" },
       { opacity: 1, clipPath: "inset(0 0 0 0)" },
-      { opacity: 0.42, clipPath: "inset(0 0 0 0)" },
-      { opacity: 0.0, clipPath: "inset(0 0 0 0)" },
+      { opacity: 0.92, clipPath: "inset(0 0 0 0)" },
+      { opacity: 0.68, clipPath: "inset(0 0 0 0)" },
       { opacity: 0.0, clipPath: "inset(0 0 0 0)" },
     ],
     { duration, easing: "ease-out", fill: "forwards" },
