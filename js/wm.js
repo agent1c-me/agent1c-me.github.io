@@ -266,30 +266,34 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     const to = icon.getBoundingClientRect();
     if (!from.width || !from.height || !to.width || !to.height) return Promise.resolve();
 
-    const ghost = win.cloneNode(true);
-    ghost.querySelectorAll("iframe").forEach(frame => frame.remove());
+    const ghost = document.createElement("div");
+    const winStyle = getComputedStyle(win);
+    const titlebar = win.querySelector(".titlebar");
+    const titleStyle = titlebar ? getComputedStyle(titlebar) : null;
+    ghost.style.all = "initial";
     ghost.style.position = "fixed";
     ghost.style.left = `${from.left}px`;
     ghost.style.top = `${from.top}px`;
     ghost.style.width = `${from.width}px`;
     ghost.style.height = `${from.height}px`;
-    ghost.style.margin = "0";
-    ghost.style.minWidth = "0";
-    ghost.style.minHeight = "0";
-    ghost.style.maxWidth = "none";
-    ghost.style.maxHeight = "none";
     ghost.style.zIndex = "9999";
     ghost.style.pointerEvents = "none";
     ghost.style.visibility = "visible";
     ghost.style.opacity = "0.96";
-    ghost.style.transformOrigin = "top left";
-    ghost.style.transition = "transform 180ms ease-in, opacity 180ms ease-in";
+    ghost.style.transition = "left 180ms ease-in, top 180ms ease-in, width 180ms ease-in, height 180ms ease-in, opacity 180ms ease-in";
+    ghost.style.border = winStyle.border || "1px solid rgba(0,0,0,0.35)";
+    ghost.style.background = winStyle.backgroundColor || "rgba(245,245,245,0.9)";
+    ghost.style.boxShadow = winStyle.boxShadow || "0 2px 8px rgba(0,0,0,0.25)";
+    ghost.style.overflow = "hidden";
+    ghost.style.boxSizing = "border-box";
+    const cap = document.createElement("div");
+    cap.style.all = "initial";
+    cap.style.display = "block";
+    cap.style.height = "16px";
+    cap.style.borderBottom = "1px solid rgba(0,0,0,0.2)";
+    cap.style.background = titleStyle?.background || titleStyle?.backgroundColor || "rgba(220,220,220,0.95)";
+    ghost.appendChild(cap);
     document.body.appendChild(ghost);
-
-    const sx = Math.max(0.12, to.width / Math.max(1, from.width));
-    const sy = Math.max(0.12, to.height / Math.max(1, from.height));
-    const dx = to.left - from.left;
-    const dy = to.top - from.top;
 
     return new Promise((resolve) => {
       let done = false;
@@ -305,7 +309,10 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
         finish();
       }, { once: true });
       requestAnimationFrame(() => {
-        ghost.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+        ghost.style.left = `${to.left}px`;
+        ghost.style.top = `${to.top}px`;
+        ghost.style.width = `${to.width}px`;
+        ghost.style.height = `${to.height}px`;
         ghost.style.opacity = "0.25";
       });
     });
@@ -318,30 +325,34 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     const to = win.getBoundingClientRect();
     if (!from.width || !from.height || !to.width || !to.height) return Promise.resolve();
 
-    const ghost = win.cloneNode(true);
-    ghost.querySelectorAll("iframe").forEach(frame => frame.remove());
+    const ghost = document.createElement("div");
+    const winStyle = getComputedStyle(win);
+    const titlebar = win.querySelector(".titlebar");
+    const titleStyle = titlebar ? getComputedStyle(titlebar) : null;
+    ghost.style.all = "initial";
     ghost.style.position = "fixed";
     ghost.style.left = `${from.left}px`;
     ghost.style.top = `${from.top}px`;
     ghost.style.width = `${from.width}px`;
     ghost.style.height = `${from.height}px`;
-    ghost.style.margin = "0";
-    ghost.style.minWidth = "0";
-    ghost.style.minHeight = "0";
-    ghost.style.maxWidth = "none";
-    ghost.style.maxHeight = "none";
     ghost.style.zIndex = "9999";
     ghost.style.pointerEvents = "none";
     ghost.style.visibility = "visible";
     ghost.style.opacity = "0.28";
-    ghost.style.transformOrigin = "top left";
-    ghost.style.transition = "transform 190ms ease-out, opacity 190ms ease-out";
+    ghost.style.transition = "left 190ms ease-out, top 190ms ease-out, width 190ms ease-out, height 190ms ease-out, opacity 190ms ease-out";
+    ghost.style.border = winStyle.border || "1px solid rgba(0,0,0,0.35)";
+    ghost.style.background = winStyle.backgroundColor || "rgba(245,245,245,0.9)";
+    ghost.style.boxShadow = winStyle.boxShadow || "0 2px 8px rgba(0,0,0,0.25)";
+    ghost.style.overflow = "hidden";
+    ghost.style.boxSizing = "border-box";
+    const cap = document.createElement("div");
+    cap.style.all = "initial";
+    cap.style.display = "block";
+    cap.style.height = "16px";
+    cap.style.borderBottom = "1px solid rgba(0,0,0,0.2)";
+    cap.style.background = titleStyle?.background || titleStyle?.backgroundColor || "rgba(220,220,220,0.95)";
+    ghost.appendChild(cap);
     document.body.appendChild(ghost);
-
-    const sx = Math.max(0.12, to.width / Math.max(1, from.width));
-    const sy = Math.max(0.12, to.height / Math.max(1, from.height));
-    const dx = to.left - from.left;
-    const dy = to.top - from.top;
 
     return new Promise((resolve) => {
       let done = false;
@@ -357,7 +368,10 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
         finish();
       }, { once: true });
       requestAnimationFrame(() => {
-        ghost.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+        ghost.style.left = `${to.left}px`;
+        ghost.style.top = `${to.top}px`;
+        ghost.style.width = `${to.width}px`;
+        ghost.style.height = `${to.height}px`;
         ghost.style.opacity = "0.96";
       });
     });
