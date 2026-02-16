@@ -240,10 +240,10 @@ function loadPreviewProviderState(){
       ? parsed.editor
       : previewProviderState.editor
     previewProviderState.openaiValidated = parsed.openaiValidated !== false
-    previewProviderState.anthropicKey = String(parsed.anthropicKey || "")
+    previewProviderState.anthropicKey = ""
     previewProviderState.anthropicModel = String(parsed.anthropicModel || previewProviderState.anthropicModel)
     previewProviderState.anthropicValidated = Boolean(parsed.anthropicValidated)
-    previewProviderState.zaiKey = String(parsed.zaiKey || "")
+    previewProviderState.zaiKey = ""
     previewProviderState.zaiModel = String(parsed.zaiModel || previewProviderState.zaiModel)
     previewProviderState.zaiValidated = Boolean(parsed.zaiValidated)
     previewProviderState.ollamaBaseUrl = String(parsed.ollamaBaseUrl || previewProviderState.ollamaBaseUrl)
@@ -254,15 +254,19 @@ function loadPreviewProviderState(){
 
 function persistPreviewProviderState(){
   try {
-    localStorage.setItem(PREVIEW_PROVIDER_KEY, JSON.stringify(previewProviderState))
+    localStorage.setItem(PREVIEW_PROVIDER_KEY, JSON.stringify({
+      ...previewProviderState,
+      anthropicKey: "",
+      zaiKey: "",
+    }))
   } catch {}
 }
 
 function refreshProviderPreviewUi(){
   const active = previewProviderState.active
   const editor = previewProviderState.editor
-  const hasAnthropic = Boolean(previewProviderState.anthropicValidated && String(previewProviderState.anthropicKey || "").trim())
-  const hasZai = Boolean(previewProviderState.zaiValidated && String(previewProviderState.zaiKey || "").trim())
+  const hasAnthropic = Boolean(previewProviderState.anthropicValidated)
+  const hasZai = Boolean(previewProviderState.zaiValidated)
   const hasOllama = Boolean(previewProviderState.ollamaValidated && String(previewProviderState.ollamaBaseUrl || "").trim())
   if (els.aiActiveProviderSelect) els.aiActiveProviderSelect.value = active
   if (els.anthropicKeyInput) els.anthropicKeyInput.value = previewProviderState.anthropicKey
@@ -523,6 +527,8 @@ async function readProviderKey(provider){
   return decryptText(appState.sessionKey, record.encrypted, record.iv)
 }
 
+const ZAI_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
+
 async function openAiChat({ apiKey, model, temperature, systemPrompt, messages }){
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -541,6 +547,108 @@ async function openAiChat({ apiKey, model, temperature, systemPrompt, messages }
   const text = json?.choices?.[0]?.message?.content
   if (!text) throw new Error("OpenAI returned no message.")
   return text.trim()
+}
+
+async function anthropicChat({ apiKey, model, temperature, systemPrompt, messages }){
+  const anthroMessages = (messages || []).map(message => ({
+    role: message?.role === "assistant" ? "assistant" : "user",
+    content: String(message?.content || ""),
+  }))
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 1024,
+      temperature,
+      system: systemPrompt,
+      messages: anthroMessages,
+    }),
+  })
+  if (!response.ok) throw new Error(`Anthropic call failed (${response.status})`)
+  const json = await response.json()
+  const text = (json?.content || [])
+    .filter(part => part?.type === "text")
+    .map(part => String(part?.text || ""))
+    .join("\n")
+    .trim()
+  if (!text) throw new Error("Anthropic returned no message.")
+  return text
+}
+
+async function zaiChat({ apiKey, model, temperature, systemPrompt, messages }){
+  const response = await fetch(`${ZAI_BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      temperature,
+      messages: [{ role: "system", content: systemPrompt }, ...messages.map(m => ({ role: m.role, content: m.content }))],
+    }),
+  })
+  if (!response.ok) throw new Error(`z.ai call failed (${response.status})`)
+  const json = await response.json()
+  const text = json?.choices?.[0]?.message?.content
+  if (!text) throw new Error("z.ai returned no message.")
+  return String(text).trim()
+}
+
+function normalizeProvider(value){
+  const provider = String(value || "").toLowerCase()
+  return ["openai", "anthropic", "zai", "ollama"].includes(provider) ? provider : "openai"
+}
+
+function activeProviderModel(provider){
+  if (provider === "anthropic") return previewProviderState.anthropicModel || FALLBACK_ANTHROPIC_MODELS[0]
+  if (provider === "zai") return previewProviderState.zaiModel || FALLBACK_ZAI_MODELS[0]
+  if (provider === "ollama") return previewProviderState.ollamaModel || "llama3.1"
+  return appState.config.model
+}
+
+function providerDisplayName(provider){
+  if (provider === "anthropic") return "Anthropic"
+  if (provider === "zai") return "z.ai"
+  if (provider === "ollama") return "Ollama"
+  return "OpenAI"
+}
+
+async function resolveActiveProviderRuntime(){
+  const provider = normalizeProvider(previewProviderState.active || "openai")
+  const model = activeProviderModel(provider)
+  const secretKey = provider === "openai" || provider === "anthropic" || provider === "zai"
+    ? await readProviderKey(provider)
+    : ""
+  return {
+    provider,
+    model,
+    apiKey: String(secretKey || "").trim(),
+    name: providerDisplayName(provider),
+  }
+}
+
+async function providerHasKey(provider){
+  const kind = normalizeProvider(provider)
+  if (kind === "anthropic" || kind === "zai" || kind === "openai") {
+    return Boolean((await readProviderKey(kind)).trim())
+  }
+  return Boolean(previewProviderState.ollamaValidated && String(previewProviderState.ollamaBaseUrl || "").trim())
+}
+
+async function providerChat({ provider, apiKey, model, temperature, systemPrompt, messages }){
+  if (provider === "anthropic") {
+    return anthropicChat({ apiKey, model, temperature, systemPrompt, messages })
+  }
+  if (provider === "zai") {
+    return zaiChat({ apiKey, model, temperature, systemPrompt, messages })
+  }
+  return openAiChat({ apiKey, model, temperature, systemPrompt, messages })
 }
 
 function buildSystemPrompt(){
@@ -762,7 +870,7 @@ async function runToolCall(call){
   return `TOOL_RESULT ${call.name}: unsupported`
 }
 
-async function openAiChatWithTools({ apiKey, model, temperature, messages }){
+async function providerChatWithTools({ provider, apiKey, model, temperature, messages }){
   const working = (messages || []).map(m => ({ role: m.role, content: m.content }))
   const systemPrompt = buildSystemPrompt()
   const autoResults = await maybeInjectAutoToolResults(working)
@@ -774,7 +882,7 @@ async function openAiChatWithTools({ apiKey, model, temperature, messages }){
     })
   }
   for (let i = 0; i < 3; i++) {
-    const reply = await openAiChat({ apiKey, model, temperature, systemPrompt, messages: working })
+    const reply = await providerChat({ provider, apiKey, model, temperature, systemPrompt, messages: working })
     const calls = parseToolCalls(reply)
     if (!calls.length) return stripToolCalls(reply) || reply
     await addEvent("tool_calls_detected", calls.map(call => call.name).join(", "))
@@ -793,7 +901,8 @@ async function openAiChatWithTools({ apiKey, model, temperature, messages }){
       content: `${results.join("\n\n")}\n\nUse the tool results and respond naturally. Do not present multiple options. Do not emit another tool call unless required.`,
     })
   }
-  const finalReply = await openAiChat({
+  const finalReply = await providerChat({
+    provider,
     apiKey,
     model,
     temperature,
@@ -808,6 +917,26 @@ async function openAiChatWithTools({ apiKey, model, temperature, messages }){
 
 async function testOpenAIKey(apiKey, model){
   await openAiChat({
+    apiKey,
+    model,
+    temperature: 0,
+    systemPrompt: "Respond with exactly: ok",
+    messages: [{ role: "user", content: "ok" }],
+  })
+}
+
+async function testAnthropicKey(apiKey, model){
+  await anthropicChat({
+    apiKey,
+    model,
+    temperature: 0,
+    systemPrompt: "Respond with exactly: ok",
+    messages: [{ role: "user", content: "ok" }],
+  })
+}
+
+async function testZaiKey(apiKey, model){
+  await zaiChat({
     apiKey,
     model,
     temperature: 0,
@@ -1103,8 +1232,8 @@ async function handleFilesystemUploadNotice(uploadedFiles){
   const summary = files.map(fileMetaLabel).join("; ")
   await addEvent("filesystem_upload_detected", `New uploaded file(s): ${summary}`)
   if (!appState.unlocked) return
-  const apiKey = await readProviderKey("openai")
-  if (!apiKey) return
+  const runtime = await resolveActiveProviderRuntime()
+  if (!runtime.apiKey) return
   const prompt = [
     "System Message: User has uploaded new file(s) into your filesystem.",
     ...files.map(file => `- ${fileMetaLabel(file)}`),
@@ -1113,9 +1242,10 @@ async function handleFilesystemUploadNotice(uploadedFiles){
     "For now, reply normally to acknowledge this.",
   ].join("\n")
   pushRolling("user", prompt)
-  const reply = await openAiChatWithTools({
-    apiKey,
-    model: appState.config.model,
+  const reply = await providerChatWithTools({
+    provider: runtime.provider,
+    apiKey: runtime.apiKey,
+    model: runtime.model,
     temperature: Math.min(0.7, appState.config.temperature),
     messages: appState.agent.rollingMessages,
   })
@@ -1389,8 +1519,12 @@ function positionHitomiDesktopIcon(){
 }
 
 async function hasAnyAiProviderKey(){
-  // Decentricity: expand this as non-OpenAI/local providers are added.
-  return Boolean(await getSecret("openai"))
+  const [openai, anthropic, zai] = await Promise.all([
+    getSecret("openai"),
+    getSecret("anthropic"),
+    getSecret("zai"),
+  ])
+  return Boolean(openai || anthropic || zai)
 }
 
 async function refreshHitomiDesktopIcon(){
@@ -1677,11 +1811,18 @@ async function persistState(){
 }
 
 async function refreshBadges(){
-  const hasOpenAi = Boolean(await getSecret("openai"))
+  const [openAiSecret, anthropicSecret, zaiSecret] = await Promise.all([
+    getSecret("openai"),
+    getSecret("anthropic"),
+    getSecret("zai"),
+  ])
+  const hasOpenAi = Boolean(openAiSecret)
   const hasTelegram = Boolean(await getSecret("telegram"))
   const selectedProvider = previewProviderState.editor
-  const hasAnthropic = Boolean(previewProviderState.anthropicValidated && String(previewProviderState.anthropicKey || "").trim())
-  const hasZai = Boolean(previewProviderState.zaiValidated && String(previewProviderState.zaiKey || "").trim())
+  if (anthropicSecret) previewProviderState.anthropicValidated = true
+  if (zaiSecret) previewProviderState.zaiValidated = true
+  const hasAnthropic = Boolean(anthropicSecret || previewProviderState.anthropicValidated)
+  const hasZai = Boolean(zaiSecret || previewProviderState.zaiValidated)
   const hasOllama = Boolean(previewProviderState.ollamaValidated && String(previewProviderState.ollamaBaseUrl || "").trim())
   if (els.openaiBadge) {
     els.openaiBadge.className = `agent-badge ${hasOpenAi ? "ok" : "warn"}`
@@ -1831,13 +1972,13 @@ function revealPostOpenAiWindows(){
 
 async function maybeCompleteOnboarding(){
   if (onboardingComplete) return true
-  const hasOpenAiSecret = Boolean(await getSecret("openai"))
-  if (!hasOpenAiSecret || !onboardingOpenAiTested) return false
+  const hasAiSecret = await hasAnyAiProviderKey()
+  if (!hasAiSecret || !onboardingOpenAiTested) return false
   onboardingComplete = true
   localStorage.setItem(ONBOARDING_KEY, "1")
   minimizeWindow(wins.openai)
   revealPostOpenAiWindows()
-  await addEvent("onboarding_step", "OpenAI key saved and tested. Chat is ready.")
+  await addEvent("onboarding_step", "AI key saved and validated. Chat is ready.")
   return true
 }
 
@@ -1941,7 +2082,7 @@ function openAiWindowHtml(){
             <div id="providerNoteAnthropic" class="agent-note">Tap to configure Anthropic API key.</div>
             <div id="providerSectionAnthropic" class="agent-provider-inline agent-hidden">
               <div id="anthropicStoredRow" class="agent-row agent-row-tight agent-hidden">
-                <span class="agent-note">Anthropic API Key Stored (Preview)</span>
+                <span class="agent-note">Anthropic API Key Stored in Vault</span>
                 <button id="anthropicEditBtn" class="btn agent-icon-btn" type="button" aria-label="Edit Anthropic key">✎</button>
                 <label class="agent-inline-mini">
                   <span>Model</span>
@@ -1953,7 +2094,7 @@ function openAiWindowHtml(){
                   <span class="agent-note">Anthropic key <span id="anthropicBadge" class="agent-badge warn">Missing key</span></span>
                   <div class="agent-inline-key agent-inline-key-wide">
                     <input id="anthropicKeyInput" class="field" type="password" placeholder="sk-ant-..." />
-                    <button id="anthropicSavePreviewBtn" class="btn agent-inline-key-btn" type="button" aria-label="Test Anthropic key">></button>
+                    <button id="anthropicSavePreviewBtn" class="btn agent-inline-key-btn" type="button" aria-label="Save Anthropic key">></button>
                   </div>
                   <label class="agent-inline-mini">
                     <span>Model</span>
@@ -1968,7 +2109,7 @@ function openAiWindowHtml(){
             <div id="providerNoteZai" class="agent-note">Tap to configure z.ai API key.</div>
             <div id="providerSectionZai" class="agent-provider-inline agent-hidden">
               <div id="zaiStoredRow" class="agent-row agent-row-tight agent-hidden">
-                <span class="agent-note">z.ai API Key Stored (Preview)</span>
+                <span class="agent-note">z.ai API Key Stored in Vault</span>
                 <button id="zaiEditBtn" class="btn agent-icon-btn" type="button" aria-label="Edit z.ai key">✎</button>
                 <label class="agent-inline-mini">
                   <span>Model</span>
@@ -1980,7 +2121,7 @@ function openAiWindowHtml(){
                   <span class="agent-note">z.ai API key <span id="zaiBadge" class="agent-badge warn">Missing key</span></span>
                   <div class="agent-inline-key agent-inline-key-wide">
                     <input id="zaiKeyInput" class="field" type="password" placeholder="zai-..." />
-                    <button id="zaiSavePreviewBtn" class="btn agent-inline-key-btn" type="button" aria-label="Test z.ai key">></button>
+                    <button id="zaiSavePreviewBtn" class="btn agent-inline-key-btn" type="button" aria-label="Save z.ai key">></button>
                   </div>
                   <label class="agent-inline-mini">
                     <span>Model</span>
@@ -1995,7 +2136,7 @@ function openAiWindowHtml(){
             <div id="providerNoteOllama" class="agent-note">Tap to configure local Ollama endpoint and model.</div>
             <div id="providerSectionOllama" class="agent-provider-inline agent-hidden">
               <div id="ollamaStoredRow" class="agent-row agent-row-tight agent-hidden">
-                <span class="agent-note">Ollama Endpoint Stored (Preview)</span>
+                <span class="agent-note">Ollama Endpoint Stored</span>
                 <button id="ollamaEditBtn" class="btn agent-icon-btn" type="button" aria-label="Edit Ollama endpoint">✎</button>
                 <label class="agent-inline-mini">
                   <span>Model</span>
@@ -2007,7 +2148,7 @@ function openAiWindowHtml(){
                   <span class="agent-note">Ollama URL <span id="ollamaBadge" class="agent-badge warn">Missing URL</span></span>
                   <div class="agent-inline-key agent-inline-key-wide">
                     <input id="ollamaBaseUrlInput" class="field" type="text" placeholder="http://localhost:11434" />
-                    <button id="ollamaSavePreviewBtn" class="btn agent-inline-key-btn" type="button" aria-label="Test Ollama endpoint">></button>
+                    <button id="ollamaSavePreviewBtn" class="btn agent-inline-key-btn" type="button" aria-label="Save Ollama endpoint">></button>
                   </div>
                   <label class="agent-inline-mini">
                     <span>Model</span>
@@ -2245,11 +2386,18 @@ async function refreshModelDropdown(providedKey){
   }
 }
 
-async function validateOpenAiKey(key){
+async function validateProviderKey(provider, key){
+  const kind = normalizeProvider(provider)
   const candidate = (key || "").trim()
-  if (!candidate) throw new Error("No OpenAI key available.")
-  await testOpenAIKey(candidate, appState.config.model)
-  await refreshModelDropdown(candidate)
+  if (!candidate) throw new Error(`No ${providerDisplayName(kind)} key available.`)
+  if (kind === "anthropic") {
+    await testAnthropicKey(candidate, activeProviderModel("anthropic"))
+  } else if (kind === "zai") {
+    await testZaiKey(candidate, activeProviderModel("zai"))
+  } else {
+    await testOpenAIKey(candidate, appState.config.model)
+    await refreshModelDropdown(candidate)
+  }
   onboardingOpenAiTested = true
   localStorage.setItem(ONBOARDING_OPENAI_TEST_KEY, "1")
   return candidate
@@ -2263,16 +2411,17 @@ async function validateTelegramToken(token){
 }
 
 async function sendChat(text, { threadId } = {}){
-  const apiKey = await readProviderKey("openai")
-  if (!apiKey) throw new Error("No OpenAI key stored.")
+  const runtime = await resolveActiveProviderRuntime()
+  if (!runtime.apiKey) throw new Error(`No ${runtime.name} key stored.`)
   appState.lastUserSeenAt = Date.now()
   const thread = threadId ? appState.agent.localThreads?.[threadId] : getActiveLocalThread()
   if (!thread) throw new Error("No active chat thread.")
   pushLocalMessage(thread.id, "user", text)
   const promptMessages = appState.agent.localThreads[thread.id]?.messages || []
-  const reply = await openAiChatWithTools({
-    apiKey,
-    model: appState.config.model,
+  const reply = await providerChatWithTools({
+    provider: runtime.provider,
+    apiKey: runtime.apiKey,
+    model: runtime.model,
     temperature: appState.config.temperature,
     messages: promptMessages,
   })
@@ -2287,16 +2436,17 @@ async function heartbeatTick(){
   if (!appState.unlocked) return
   appState.agent.lastTickAt = Date.now()
   if (els.lastTick) els.lastTick.textContent = formatTime(appState.agent.lastTickAt)
-  const apiKey = await readProviderKey("openai")
-  if (!apiKey) {
-    await addEvent("heartbeat_skipped", "No OpenAI key")
+  const runtime = await resolveActiveProviderRuntime()
+  if (!runtime.apiKey) {
+    await addEvent("heartbeat_skipped", `No ${runtime.name} key`)
     return
   }
   const prompt = `${appState.agent.heartbeatMd.trim()}\n\nTime: ${new Date().toISOString()}\nRespond with a short check-in.`
   pushRolling("user", prompt)
-  const reply = await openAiChatWithTools({
-    apiKey,
-    model: appState.config.model,
+  const reply = await providerChatWithTools({
+    provider: runtime.provider,
+    apiKey: runtime.apiKey,
+    model: runtime.model,
     temperature: Math.min(0.7, appState.config.temperature),
     messages: appState.agent.rollingMessages,
   })
@@ -2352,8 +2502,8 @@ async function pollTelegram(){
   if (appState.telegramPolling || !appState.unlocked || !appState.telegramEnabled) return
   appState.telegramPolling = true
   try {
-    const [token, apiKey] = await Promise.all([readProviderKey("telegram"), readProviderKey("openai")])
-    if (!token || !apiKey) return
+    const [token, runtime] = await Promise.all([readProviderKey("telegram"), resolveActiveProviderRuntime()])
+    if (!token || !runtime.apiKey) return
     const botProfile = await getTelegramBotProfile(token)
     const offset = typeof appState.agent.telegramLastUpdateId === "number" ? appState.agent.telegramLastUpdateId + 1 : undefined
     const updates = await getTelegramUpdates(token, offset)
@@ -2376,9 +2526,10 @@ async function pollTelegram(){
       const chatLabel = thread.label || String(msg.chat.id)
       pushLocalMessage(thread.id, "user", msg.text)
       const promptMessages = appState.agent.localThreads[thread.id]?.messages || []
-      const reply = await openAiChatWithTools({
-        apiKey,
-        model: appState.config.model,
+      const reply = await providerChatWithTools({
+        provider: runtime.provider,
+        apiKey: runtime.apiKey,
+        model: runtime.model,
         temperature: appState.config.temperature,
         messages: promptMessages,
       })
@@ -2434,10 +2585,10 @@ function wireUnlockDom(){
       await refreshModelDropdown()
       refreshTelegramLoop()
       refreshUi()
-      const hasOpenAiSecret = Boolean(await getSecret("openai"))
-      if (!hasOpenAiSecret || !onboardingComplete) {
+      const hasAiSecret = await hasAnyAiProviderKey()
+      if (!hasAiSecret || !onboardingComplete) {
         applyOnboardingWindowState()
-        setStatus("Now connect OpenAI to start chatting.")
+        setStatus("Now connect an AI provider to start chatting.")
       } else {
         setClippyMode(true)
         setStatus("Vault unlocked.")
@@ -2476,41 +2627,54 @@ function wireProviderPreviewDom(){
     node?.addEventListener("click", () => setPreviewProviderEditor(provider))
   }
 
-  els.aiActiveProviderSelect?.addEventListener("change", () => {
+  els.aiActiveProviderSelect?.addEventListener("change", async () => {
     const provider = els.aiActiveProviderSelect.value || "openai"
     if (provider === "openai") {
       setActivePreviewProvider("openai")
       setStatus("Active provider set to OpenAI.")
       return
     }
-    const isReady = provider === "anthropic"
-      ? Boolean(previewProviderState.anthropicValidated && String(previewProviderState.anthropicKey || "").trim())
-      : provider === "zai"
-        ? Boolean(previewProviderState.zaiValidated && String(previewProviderState.zaiKey || "").trim())
-        : Boolean(previewProviderState.ollamaValidated && String(previewProviderState.ollamaBaseUrl || "").trim())
+    const isReady = await providerHasKey(provider)
     if (!isReady) {
       setPreviewProviderEditor(provider)
       if (els.aiActiveProviderSelect) els.aiActiveProviderSelect.value = previewProviderState.active
-      setStatus(`${provider} selected for editing. Test ${provider === "ollama" ? "Ollama endpoint" : `${provider} key`} to switch active provider.`)
+      setStatus(`${providerDisplayName(provider)} selected for editing. Save a valid key to switch active provider.`)
       return
     }
     setActivePreviewProvider(provider)
-    setStatus(`Active provider set to ${provider}.`)
+    setStatus(`Active provider set to ${providerDisplayName(provider)}.`)
   })
 
   els.anthropicSavePreviewBtn?.addEventListener("click", async () => {
-    previewProviderState.anthropicKey = String(els.anthropicKeyInput?.value || "").trim()
-    previewProviderState.anthropicValidated = previewProviderState.anthropicKey.length > 0
-    anthropicEditing = false
-    if (previewProviderState.anthropicValidated) setActivePreviewProvider("anthropic")
-    else setPreviewProviderEditor("anthropic")
-    persistPreviewProviderState()
-    refreshProviderPreviewUi()
-    if (previewProviderState.anthropicValidated) {
-      await addEvent("provider_preview_saved", "Anthropic key tested (preview validation accepted).")
-      setStatus(`Anthropic key tested. Active provider switched to anthropic (${previewProviderState.anthropicModel}).`)
-    } else {
-      setStatus("Anthropic key missing.")
+    try {
+      previewProviderState.anthropicKey = String(els.anthropicKeyInput?.value || "").trim()
+      if (!previewProviderState.anthropicKey) {
+        previewProviderState.anthropicValidated = false
+        anthropicEditing = true
+        persistPreviewProviderState()
+        refreshProviderPreviewUi()
+        setStatus("Anthropic key missing.")
+        return
+      }
+      await saveProviderKey("anthropic", previewProviderState.anthropicKey)
+      await validateProviderKey("anthropic", previewProviderState.anthropicKey)
+      previewProviderState.anthropicValidated = true
+      previewProviderState.anthropicKey = ""
+      if (els.anthropicKeyInput) els.anthropicKeyInput.value = ""
+      anthropicEditing = false
+      setActivePreviewProvider("anthropic")
+      persistPreviewProviderState()
+      refreshProviderPreviewUi()
+      await addEvent("provider_key_saved", "Anthropic key stored and validated.")
+      const completed = await maybeCompleteOnboarding()
+      setStatus(completed
+        ? `Anthropic key saved. Onboarding continued (${previewProviderState.anthropicModel}).`
+        : `Anthropic key saved. Active provider switched to Anthropic (${previewProviderState.anthropicModel}).`)
+    } catch (err) {
+      previewProviderState.anthropicValidated = false
+      anthropicEditing = true
+      refreshProviderPreviewUi()
+      setStatus(err instanceof Error ? err.message : "Could not save Anthropic key")
     }
   })
   els.anthropicEditBtn?.addEventListener("click", () => {
@@ -2520,18 +2684,35 @@ function wireProviderPreviewDom(){
   })
 
   els.zaiSavePreviewBtn?.addEventListener("click", async () => {
-    previewProviderState.zaiKey = String(els.zaiKeyInput?.value || "").trim()
-    previewProviderState.zaiValidated = previewProviderState.zaiKey.length > 0
-    zaiEditing = false
-    if (previewProviderState.zaiValidated) setActivePreviewProvider("zai")
-    else setPreviewProviderEditor("zai")
-    persistPreviewProviderState()
-    refreshProviderPreviewUi()
-    if (previewProviderState.zaiValidated) {
-      await addEvent("provider_preview_saved", "z.ai key tested (preview validation accepted).")
-      setStatus(`z.ai key tested. Active provider switched to z.ai (${previewProviderState.zaiModel}).`)
-    } else {
-      setStatus("z.ai key missing.")
+    try {
+      previewProviderState.zaiKey = String(els.zaiKeyInput?.value || "").trim()
+      if (!previewProviderState.zaiKey) {
+        previewProviderState.zaiValidated = false
+        zaiEditing = true
+        persistPreviewProviderState()
+        refreshProviderPreviewUi()
+        setStatus("z.ai key missing.")
+        return
+      }
+      await saveProviderKey("zai", previewProviderState.zaiKey)
+      await validateProviderKey("zai", previewProviderState.zaiKey)
+      previewProviderState.zaiValidated = true
+      previewProviderState.zaiKey = ""
+      if (els.zaiKeyInput) els.zaiKeyInput.value = ""
+      zaiEditing = false
+      setActivePreviewProvider("zai")
+      persistPreviewProviderState()
+      refreshProviderPreviewUi()
+      await addEvent("provider_key_saved", "z.ai key stored and validated.")
+      const completed = await maybeCompleteOnboarding()
+      setStatus(completed
+        ? `z.ai key saved. Onboarding continued (${previewProviderState.zaiModel}).`
+        : `z.ai key saved. Active provider switched to z.ai (${previewProviderState.zaiModel}).`)
+    } catch (err) {
+      previewProviderState.zaiValidated = false
+      zaiEditing = true
+      refreshProviderPreviewUi()
+      setStatus(err instanceof Error ? err.message : "Could not save z.ai key")
     }
   })
   els.zaiEditBtn?.addEventListener("click", () => {
@@ -2598,7 +2779,7 @@ function wireProviderPreviewDom(){
     persistPreviewProviderState()
     refreshProviderPreviewUi()
     if (previewProviderState.ollamaValidated) {
-      await addEvent("provider_preview_saved", "Ollama endpoint saved (preview validation accepted).")
+      await addEvent("provider_key_saved", "Ollama endpoint saved.")
       setStatus(`Ollama endpoint saved. Active provider switched to ollama (${previewProviderState.ollamaModel}).`)
     } else {
       setStatus("Ollama URL missing.")
@@ -2726,7 +2907,8 @@ function wireMainDom(){
       localStorage.removeItem(ONBOARDING_KEY)
       localStorage.removeItem(ONBOARDING_OPENAI_TEST_KEY)
       await addEvent("provider_key_saved", "OpenAI key stored in encrypted vault")
-      await validateOpenAiKey(key)
+      await validateProviderKey("openai", key)
+      setActivePreviewProvider("openai")
       await refreshBadges()
       const completed = await maybeCompleteOnboarding()
       setStatus(completed ? "OpenAI key saved and validated. Onboarding continued." : "OpenAI key saved and validated.")
@@ -2906,8 +3088,8 @@ export async function initAgent1C({ wm }){
   onboardingComplete = localStorage.getItem(ONBOARDING_KEY) === "1"
   onboardingOpenAiTested = localStorage.getItem(ONBOARDING_OPENAI_TEST_KEY) === "1"
   await loadPersistentState()
-  const hasOpenAiSecret = Boolean(await getSecret("openai"))
-  const onboarding = !hasOpenAiSecret || !onboardingComplete
+  const hasAiSecret = await hasAnyAiProviderKey()
+  const onboarding = !hasAiSecret || !onboardingComplete
 
   if (!appState.vaultReady) {
     createSetupWindow()
@@ -2917,7 +3099,7 @@ export async function initAgent1C({ wm }){
   await createWorkspace({ showUnlock: true, onboarding })
   if (onboarding) {
     applyOnboardingWindowState()
-    setStatus("Unlock vault, then connect OpenAI to start.")
+    setStatus("Unlock vault, then connect an AI provider to start.")
   } else {
     setStatus("Vault locked. Unlock to continue.")
   }
