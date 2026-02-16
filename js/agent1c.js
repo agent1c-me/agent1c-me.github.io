@@ -1676,19 +1676,19 @@ async function refreshBadges(){
   }
   if (els.providerPillOpenai) {
     els.providerPillOpenai.className = `agent-provider-pill ${hasOpenAi ? "ok" : "warn"}`
-    els.providerPillOpenai.textContent = hasOpenAi ? "Ready" : "Missing"
+    els.providerPillOpenai.textContent = hasOpenAi ? "Ready" : "Missing key"
   }
   if (els.providerPillAnthropic) {
     els.providerPillAnthropic.className = `agent-provider-pill ${previewProviderState.anthropicValidated ? "ok" : "warn"}`
-    els.providerPillAnthropic.textContent = previewProviderState.anthropicValidated ? "Ready" : "Preview"
+    els.providerPillAnthropic.textContent = previewProviderState.anthropicValidated ? "Ready" : "Missing key"
   }
   if (els.providerPillZai) {
     els.providerPillZai.className = `agent-provider-pill ${previewProviderState.zaiValidated ? "ok" : "warn"}`
-    els.providerPillZai.textContent = previewProviderState.zaiValidated ? "Ready" : "Preview"
+    els.providerPillZai.textContent = previewProviderState.zaiValidated ? "Ready" : "Missing key"
   }
   if (els.providerPillOllama) {
     els.providerPillOllama.className = `agent-provider-pill ${previewProviderState.ollamaValidated ? "ok" : "warn"}`
-    els.providerPillOllama.textContent = previewProviderState.ollamaValidated ? "Ready" : "Preview"
+    els.providerPillOllama.textContent = previewProviderState.ollamaValidated ? "Ready" : "Missing URL"
   }
   if (els.telegramBadge) {
     els.telegramBadge.className = `agent-badge ${hasTelegram ? "ok" : "warn"}`
@@ -1889,15 +1889,15 @@ function openAiWindowHtml(){
             <div class="agent-note">Use OpenAI settings and key controls below.</div>
           </button>
           <button id="providerCardAnthropic" class="agent-provider-card" data-provider="anthropic" type="button">
-            <div class="agent-provider-head"><strong>Anthropic</strong><span id="providerPillAnthropic" class="agent-provider-pill warn">Preview</span></div>
+            <div class="agent-provider-head"><strong>Anthropic</strong><span id="providerPillAnthropic" class="agent-provider-pill warn">Missing key</span></div>
             <div class="agent-note">Tap to configure Anthropic API key.</div>
           </button>
           <button id="providerCardZai" class="agent-provider-card" data-provider="zai" type="button">
-            <div class="agent-provider-head"><strong>z.ai</strong><span id="providerPillZai" class="agent-provider-pill warn">Preview</span></div>
+            <div class="agent-provider-head"><strong>z.ai</strong><span id="providerPillZai" class="agent-provider-pill warn">Missing key</span></div>
             <div class="agent-note">Tap to configure z.ai API key.</div>
           </button>
           <button id="providerCardOllama" class="agent-provider-card" data-provider="ollama" type="button">
-            <div class="agent-provider-head"><strong>Ollama (Local)</strong><span id="providerPillOllama" class="agent-provider-pill warn">Preview</span></div>
+            <div class="agent-provider-head"><strong>Ollama (Local)</strong><span id="providerPillOllama" class="agent-provider-pill warn">Missing URL</span></div>
             <div class="agent-note">Tap to configure local Ollama endpoint and model.</div>
           </button>
         </div>
