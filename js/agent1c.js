@@ -236,6 +236,13 @@ const previewProviderState = {
   ollamaBaseUrl: "http://localhost:11434",
   ollamaModel: "llama3.1",
   ollamaValidated: false,
+  providerErrors: {
+    openai: "",
+    anthropic: "",
+    xai: "",
+    zai: "",
+    ollama: "",
+  },
 }
 
 function byId(id){ return document.getElementById(id) }
@@ -263,6 +270,15 @@ function loadPreviewProviderState(){
     previewProviderState.ollamaBaseUrl = String(parsed.ollamaBaseUrl || previewProviderState.ollamaBaseUrl)
     previewProviderState.ollamaModel = String(parsed.ollamaModel || previewProviderState.ollamaModel)
     previewProviderState.ollamaValidated = Boolean(parsed.ollamaValidated)
+    if (parsed.providerErrors && typeof parsed.providerErrors === "object") {
+      previewProviderState.providerErrors = {
+        openai: String(parsed.providerErrors.openai || ""),
+        anthropic: String(parsed.providerErrors.anthropic || ""),
+        xai: String(parsed.providerErrors.xai || ""),
+        zai: String(parsed.providerErrors.zai || ""),
+        ollama: String(parsed.providerErrors.ollama || ""),
+      }
+    }
   } catch {}
 }
 
@@ -275,6 +291,30 @@ function persistPreviewProviderState(){
       zaiKey: "",
     }))
   } catch {}
+}
+
+function extractErrorCode(err){
+  const text = String(err instanceof Error ? err.message : err || "")
+  const providerCode = /code[:=\s]+(\d{3,})/i.exec(text)
+  if (providerCode?.[1]) return providerCode[1]
+  const statusCode = /\((\d{3})\)/.exec(text)
+  if (statusCode?.[1]) return statusCode[1]
+  return "NET"
+}
+
+function setProviderApiError(provider, err){
+  const kind = normalizeProvider(provider)
+  previewProviderState.providerErrors[kind] = extractErrorCode(err)
+  persistPreviewProviderState()
+  refreshBadges().catch(() => {})
+}
+
+function clearProviderApiError(provider){
+  const kind = normalizeProvider(provider)
+  if (!previewProviderState.providerErrors[kind]) return
+  previewProviderState.providerErrors[kind] = ""
+  persistPreviewProviderState()
+  refreshBadges().catch(() => {})
 }
 
 function refreshProviderPreviewUi(){
@@ -649,11 +689,13 @@ async function zaiChat({ apiKey, model, temperature, systemPrompt, messages }){
   })
   if (!response.ok) {
     let providerMsg = ""
+    let providerCode = ""
     try {
       const errJson = await response.json()
       providerMsg = String(errJson?.error?.message || "").trim()
+      providerCode = String(errJson?.error?.code || "").trim()
     } catch {}
-    throw new Error(`z.ai call failed (${response.status})${providerMsg ? `: ${providerMsg}` : ""}`)
+    throw new Error(`z.ai call failed (${response.status})${providerCode ? ` code=${providerCode}` : ""}${providerMsg ? `: ${providerMsg}` : ""}`)
   }
   const json = await response.json()
   const text = json?.choices?.[0]?.message?.content
@@ -727,19 +769,35 @@ async function providerHasKey(provider){
 }
 
 async function providerChat({ provider, apiKey, model, temperature, systemPrompt, messages, ollamaBaseUrl }){
-  if (provider === "anthropic") {
-    return anthropicChat({ apiKey, model, temperature, systemPrompt, messages })
+  const kind = normalizeProvider(provider)
+  try {
+    if (kind === "anthropic") {
+      const text = await anthropicChat({ apiKey, model, temperature, systemPrompt, messages })
+      clearProviderApiError(kind)
+      return text
+    }
+    if (kind === "xai") {
+      const text = await xaiChat({ apiKey, model, temperature, systemPrompt, messages })
+      clearProviderApiError(kind)
+      return text
+    }
+    if (kind === "zai") {
+      const text = await zaiChat({ apiKey, model, temperature, systemPrompt, messages })
+      clearProviderApiError(kind)
+      return text
+    }
+    if (kind === "ollama") {
+      const text = await ollamaChat({ baseUrl: ollamaBaseUrl, model, temperature, systemPrompt, messages })
+      clearProviderApiError(kind)
+      return text
+    }
+    const text = await openAiChat({ apiKey, model, temperature, systemPrompt, messages })
+    clearProviderApiError("openai")
+    return text
+  } catch (err) {
+    setProviderApiError(kind, err)
+    throw err
   }
-  if (provider === "xai") {
-    return xaiChat({ apiKey, model, temperature, systemPrompt, messages })
-  }
-  if (provider === "zai") {
-    return zaiChat({ apiKey, model, temperature, systemPrompt, messages })
-  }
-  if (provider === "ollama") {
-    return ollamaChat({ baseUrl: ollamaBaseUrl, model, temperature, systemPrompt, messages })
-  }
-  return openAiChat({ apiKey, model, temperature, systemPrompt, messages })
 }
 
 function buildSystemPrompt(){
@@ -1940,6 +1998,12 @@ async function refreshBadges(){
   const hasXai = Boolean(xaiSecret || previewProviderState.xaiValidated)
   const hasZai = Boolean(zaiSecret || previewProviderState.zaiValidated)
   const hasOllama = Boolean(previewProviderState.ollamaValidated && String(previewProviderState.ollamaBaseUrl || "").trim())
+  const providerErrors = previewProviderState.providerErrors || {}
+  const openaiErr = String(providerErrors.openai || "")
+  const anthropicErr = String(providerErrors.anthropic || "")
+  const xaiErr = String(providerErrors.xai || "")
+  const zaiErr = String(providerErrors.zai || "")
+  const ollamaErr = String(providerErrors.ollama || "")
   if (els.openaiBadge) {
     els.openaiBadge.className = `agent-badge ${hasOpenAi ? "ok" : "warn"}`
     els.openaiBadge.textContent = hasOpenAi ? "Saved in vault" : "Missing key"
@@ -1961,24 +2025,29 @@ async function refreshBadges(){
     els.ollamaBadge.textContent = hasOllama ? "Stored" : "Missing URL"
   }
   if (els.providerPillOpenai) {
-    els.providerPillOpenai.className = `agent-provider-pill ${hasOpenAi ? "ok" : "warn"}`
-    els.providerPillOpenai.textContent = hasOpenAi ? "Ready" : "Missing key"
+    const mode = !hasOpenAi ? "warn" : (openaiErr ? "err" : "ok")
+    els.providerPillOpenai.className = `agent-provider-pill ${mode}`
+    els.providerPillOpenai.textContent = !hasOpenAi ? "Missing key" : (openaiErr ? `Error ${openaiErr}` : "Ready")
   }
   if (els.providerPillAnthropic) {
-    els.providerPillAnthropic.className = `agent-provider-pill ${hasAnthropic ? "ok" : "warn"}`
-    els.providerPillAnthropic.textContent = hasAnthropic ? "Ready" : "Missing key"
+    const mode = !hasAnthropic ? "warn" : (anthropicErr ? "err" : "ok")
+    els.providerPillAnthropic.className = `agent-provider-pill ${mode}`
+    els.providerPillAnthropic.textContent = !hasAnthropic ? "Missing key" : (anthropicErr ? `Error ${anthropicErr}` : "Ready")
   }
   if (els.providerPillXai) {
-    els.providerPillXai.className = `agent-provider-pill ${hasXai ? "ok" : "warn"}`
-    els.providerPillXai.textContent = hasXai ? "Ready" : "Missing key"
+    const mode = !hasXai ? "warn" : (xaiErr ? "err" : "ok")
+    els.providerPillXai.className = `agent-provider-pill ${mode}`
+    els.providerPillXai.textContent = !hasXai ? "Missing key" : (xaiErr ? `Error ${xaiErr}` : "Ready")
   }
   if (els.providerPillZai) {
-    els.providerPillZai.className = `agent-provider-pill ${hasZai ? "ok" : "warn"}`
-    els.providerPillZai.textContent = hasZai ? "Ready" : "Missing key"
+    const mode = !hasZai ? "warn" : (zaiErr ? "err" : "ok")
+    els.providerPillZai.className = `agent-provider-pill ${mode}`
+    els.providerPillZai.textContent = !hasZai ? "Missing key" : (zaiErr ? `Error ${zaiErr}` : "Ready")
   }
   if (els.providerPillOllama) {
-    els.providerPillOllama.className = `agent-provider-pill ${hasOllama ? "ok" : "warn"}`
-    els.providerPillOllama.textContent = hasOllama ? "Ready" : "Missing URL"
+    const mode = !hasOllama ? "warn" : (ollamaErr ? "err" : "ok")
+    els.providerPillOllama.className = `agent-provider-pill ${mode}`
+    els.providerPillOllama.textContent = !hasOllama ? "Missing URL" : (ollamaErr ? `Error ${ollamaErr}` : "Ready")
   }
   if (els.telegramBadge) {
     els.telegramBadge.className = `agent-badge ${hasTelegram ? "ok" : "warn"}`
@@ -2701,15 +2770,21 @@ async function validateProviderKey(provider, key){
   const kind = normalizeProvider(provider)
   const candidate = (key || "").trim()
   if (!candidate) throw new Error(`No ${providerDisplayName(kind)} key available.`)
-  if (kind === "anthropic") {
-    await testAnthropicKey(candidate, activeProviderModel("anthropic"))
-  } else if (kind === "xai") {
-    await testXaiKey(candidate, activeProviderModel("xai"))
-  } else if (kind === "zai") {
-    await testZaiKey(candidate, activeProviderModel("zai"))
-  } else {
-    await testOpenAIKey(candidate, appState.config.model)
-    await refreshModelDropdown(candidate)
+  try {
+    if (kind === "anthropic") {
+      await testAnthropicKey(candidate, activeProviderModel("anthropic"))
+    } else if (kind === "xai") {
+      await testXaiKey(candidate, activeProviderModel("xai"))
+    } else if (kind === "zai") {
+      await testZaiKey(candidate, activeProviderModel("zai"))
+    } else {
+      await testOpenAIKey(candidate, appState.config.model)
+      await refreshModelDropdown(candidate)
+    }
+    clearProviderApiError(kind)
+  } catch (err) {
+    setProviderApiError(kind, err)
+    throw err
   }
   onboardingOpenAiTested = true
   localStorage.setItem(ONBOARDING_OPENAI_TEST_KEY, "1")

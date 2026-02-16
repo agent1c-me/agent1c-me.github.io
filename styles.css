@@ -1747,6 +1747,9 @@
 .agent-provider-pill.ok{
   background: #d8e9d8;
 }
+.agent-provider-pill.err{
+  background: #edd8d8;
+}
 .agent-provider-section{
   border: 1px solid var(--line);
   background: rgba(255,255,255,0.28);
@@ -2035,6 +2038,10 @@ body.dark .agent-provider-pill{
   background: #2b3445;
   border-color: #5d6678;
   color: #eef2ff;
+}
+body.dark .agent-provider-pill.err{
+  background: #4d2b2b;
+  border-color: #7a4e4e;
 }
 body.dark .agent-provider-section{
   background: #161b25;
