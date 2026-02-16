@@ -236,6 +236,7 @@ let knownFilesystemFiles = new Map()
 let clippyMode = false
 let clippyUi = null
 let clippyLastAssistantKey = ""
+let clippyBubbleVariant = "full"
 let hitomiDesktopIcon = null
 const thinkingThreadIds = new Set()
 
@@ -1904,6 +1905,19 @@ function getClippyChatHtml(){
   return rendered.join("")
 }
 
+function getClippyCompactHtml(){
+  const thread = getChatOneThread()
+  const messages = Array.isArray(thread?.messages) ? thread.messages : []
+  const thinking = isThreadThinking(thread?.id)
+  if (thinking) return `<div class="clippy-line"><strong>Hitomi:</strong> Thinking...</div>`
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const msg = messages[i]
+    if (msg?.role !== "assistant") continue
+    return `<div class="clippy-line"><strong>Hitomi:</strong> ${escapeHtml(msg.content)}</div>`
+  }
+  return `<div class="clippy-line">No messages yet.</div>`
+}
+
 function computeNextDesktopIconPosition(extra = 0){
   const desktop = document.getElementById("desktop")
   if (!desktop) return { x: 10, y: 10 }
@@ -2140,14 +2154,17 @@ function scrollClippyToBottom(){
 }
 
 function renderClippyBubble(){
-  if (!clippyUi?.log) return
-  clippyUi.log.innerHTML = getClippyChatHtml()
+  if (!clippyUi?.log || !clippyUi?.bubble) return
+  const compact = clippyBubbleVariant === "compact"
+  clippyUi.bubble.classList.toggle("compact", compact)
+  clippyUi.log.innerHTML = compact ? getClippyCompactHtml() : getClippyChatHtml()
   scrollClippyToBottom()
   requestAnimationFrame(positionClippyBubble)
 }
 
 function showClippyBubble(opts = {}){
   if (!clippyUi?.bubble) return
+  clippyBubbleVariant = opts.variant === "compact" ? "compact" : "full"
   renderClippyBubble()
   clippyUi.bubble.classList.remove("clippy-hidden")
   requestAnimationFrame(() => {
@@ -2231,7 +2248,7 @@ function ensureClippyAssistant(){
   }
   body?.addEventListener("pointerup", (e) => {
     if (!moved) {
-      if (bubble?.classList.contains("clippy-hidden")) showClippyBubble({ snapNoOverlap: true, preferAbove: true })
+      if (bubble?.classList.contains("clippy-hidden")) showClippyBubble({ variant: "full", snapNoOverlap: true, preferAbove: true })
       else hideClippyBubble()
     } else if (bubble && !bubble.classList.contains("clippy-hidden")) {
       snapClippyOutOfBubble({ preferAbove: false })
@@ -2258,6 +2275,8 @@ function ensureClippyAssistant(){
     if (!text) return
     if (input) input.value = ""
     try {
+      clippyBubbleVariant = "full"
+      showClippyBubble({ variant: "full", snapNoOverlap: true, preferAbove: false })
       saveDraftFromInputs()
       setStatus("Thinking...")
       const chatOne = getChatOneThread()
@@ -2265,7 +2284,7 @@ function ensureClippyAssistant(){
       await sendChat(text, { threadId: chatOne.id })
       setStatus("Reply received.")
       renderClippyBubble()
-      showClippyBubble()
+      showClippyBubble({ variant: "full", snapNoOverlap: true, preferAbove: false })
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Chat failed")
     }
@@ -2347,7 +2366,7 @@ function renderChat(){
     const latestKey = latestAssistantMessageKey(chatOneMessages)
     const bubbleHidden = clippyUi?.bubble?.classList.contains("clippy-hidden")
     if (latestKey && latestKey !== clippyLastAssistantKey && bubbleHidden) {
-      showClippyBubble()
+      showClippyBubble({ variant: "compact", snapNoOverlap: true, preferAbove: true })
     }
     clippyLastAssistantKey = latestKey || clippyLastAssistantKey
   }
