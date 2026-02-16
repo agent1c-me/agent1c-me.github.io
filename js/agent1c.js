@@ -214,7 +214,7 @@ const wins = {
 }
 const previewProviderState = {
   active: "openai",
-  editor: "openai",
+  editor: "",
   openaiValidated: true,
   anthropicKey: "",
   anthropicModel: "claude-opus-4-1",
@@ -236,7 +236,9 @@ function loadPreviewProviderState(){
     const parsed = JSON.parse(raw)
     if (!parsed || typeof parsed !== "object") return
     previewProviderState.active = ["openai", "anthropic", "zai", "ollama"].includes(parsed.active) ? parsed.active : previewProviderState.active
-    previewProviderState.editor = ["openai", "anthropic", "zai", "ollama"].includes(parsed.editor) ? parsed.editor : previewProviderState.active
+    previewProviderState.editor = parsed.editor === "" || ["openai", "anthropic", "zai", "ollama"].includes(parsed.editor)
+      ? parsed.editor
+      : previewProviderState.editor
     previewProviderState.openaiValidated = parsed.openaiValidated !== false
     previewProviderState.anthropicKey = String(parsed.anthropicKey || "")
     previewProviderState.anthropicModel = String(parsed.anthropicModel || previewProviderState.anthropicModel)
@@ -273,6 +275,11 @@ function refreshProviderPreviewUi(){
   if (els.providerCardAnthropic) els.providerCardAnthropic.classList.toggle("active", editor === "anthropic")
   if (els.providerCardZai) els.providerCardZai.classList.toggle("active", editor === "zai")
   if (els.providerCardOllama) els.providerCardOllama.classList.toggle("active", editor === "ollama")
+  if (els.providerNoteOpenai) els.providerNoteOpenai.classList.toggle("agent-hidden", editor === "openai")
+  if (els.providerNoteAnthropic) els.providerNoteAnthropic.classList.toggle("agent-hidden", editor === "anthropic")
+  if (els.providerNoteZai) els.providerNoteZai.classList.toggle("agent-hidden", editor === "zai")
+  if (els.providerNoteOllama) els.providerNoteOllama.classList.toggle("agent-hidden", editor === "ollama")
+  if (els.providerSectionOpenai) els.providerSectionOpenai.classList.toggle("agent-hidden", editor !== "openai")
   if (els.providerSectionAnthropic) els.providerSectionAnthropic.classList.toggle("agent-hidden", editor !== "anthropic")
   if (els.providerSectionZai) els.providerSectionZai.classList.toggle("agent-hidden", editor !== "zai")
   if (els.providerSectionOllama) els.providerSectionOllama.classList.toggle("agent-hidden", editor !== "ollama")
@@ -1669,7 +1676,7 @@ async function persistState(){
 async function refreshBadges(){
   const hasOpenAi = Boolean(await getSecret("openai"))
   const hasTelegram = Boolean(await getSecret("telegram"))
-  const selectedProvider = previewProviderState.editor || "openai"
+  const selectedProvider = previewProviderState.editor
   if (els.openaiBadge) {
     els.openaiBadge.className = `agent-badge ${hasOpenAi ? "ok" : "warn"}`
     els.openaiBadge.textContent = hasOpenAi ? "Saved in vault" : "Missing key"
@@ -1884,113 +1891,115 @@ function openAiWindowHtml(){
           </label>
         </div>
         <div class="agent-provider-cards">
-          <button id="providerCardOpenai" class="agent-provider-card" data-provider="openai" type="button">
+          <div id="providerCardOpenai" class="agent-provider-card" data-provider="openai">
             <div class="agent-provider-head"><strong>OpenAI</strong><span id="providerPillOpenai" class="agent-provider-pill warn">Missing</span></div>
-            <div class="agent-note">Use OpenAI settings and key controls below.</div>
-          </button>
-          <button id="providerCardAnthropic" class="agent-provider-card" data-provider="anthropic" type="button">
+            <div id="providerNoteOpenai" class="agent-note">Tap to configure OpenAI API key.</div>
+            <div id="providerSectionOpenai" class="agent-provider-inline agent-hidden">
+              <div id="openaiStoredRow" class="agent-row agent-row-tight agent-hidden">
+                <span class="agent-note">OpenAI API Key Stored in Vault</span>
+                <button id="openaiEditBtn" class="btn agent-icon-btn" type="button" aria-label="Edit OpenAI key">✎</button>
+                <label class="agent-inline-mini">
+                  <span>Model</span>
+                  <select id="modelInput" class="field"></select>
+                </label>
+              </div>
+              <div id="openaiControls">
+                <form id="openaiForm" class="agent-row agent-row-tight">
+                  <span class="agent-note">OpenAI key <span id="openaiBadge" class="agent-badge warn">Missing key</span></span>
+                  <div class="agent-inline-key agent-inline-key-wide">
+                    <input id="openaiKeyInput" class="field" type="password" placeholder="sk-..." required />
+                    <button id="openaiSaveBtn" class="btn agent-inline-key-btn" type="submit" aria-label="Save OpenAI key">></button>
+                  </div>
+                  <label class="agent-inline-mini">
+                    <span>Model</span>
+                    <select id="modelInputEdit" class="field"></select>
+                  </label>
+                </form>
+              </div>
+            </div>
+          </div>
+          <div id="providerCardAnthropic" class="agent-provider-card" data-provider="anthropic">
             <div class="agent-provider-head"><strong>Anthropic</strong><span id="providerPillAnthropic" class="agent-provider-pill warn">Missing key</span></div>
-            <div class="agent-note">Tap to configure Anthropic API key.</div>
-          </button>
-          <button id="providerCardZai" class="agent-provider-card" data-provider="zai" type="button">
+            <div id="providerNoteAnthropic" class="agent-note">Tap to configure Anthropic API key.</div>
+            <div id="providerSectionAnthropic" class="agent-provider-inline agent-hidden">
+              <div id="anthropicStoredRow" class="agent-row agent-row-tight agent-hidden">
+                <span class="agent-note">Anthropic API Key Stored (Preview)</span>
+                <button id="anthropicEditBtn" class="btn agent-icon-btn" type="button" aria-label="Edit Anthropic key">✎</button>
+                <label class="agent-inline-mini">
+                  <span>Model</span>
+                  <select id="anthropicModelStored" class="field">${renderModelOptions(FALLBACK_ANTHROPIC_MODELS)}</select>
+                </label>
+              </div>
+              <div id="anthropicControls">
+                <div class="agent-row agent-row-tight">
+                  <span class="agent-note">Anthropic key</span>
+                  <div class="agent-inline-key agent-inline-key-wide">
+                    <input id="anthropicKeyInput" class="field" type="password" placeholder="sk-ant-..." />
+                    <button id="anthropicSavePreviewBtn" class="btn agent-inline-key-btn" type="button" aria-label="Test Anthropic key">></button>
+                  </div>
+                  <label class="agent-inline-mini">
+                    <span>Model</span>
+                    <select id="anthropicModelInput" class="field">${renderModelOptions(FALLBACK_ANTHROPIC_MODELS)}</select>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="providerCardZai" class="agent-provider-card" data-provider="zai">
             <div class="agent-provider-head"><strong>z.ai</strong><span id="providerPillZai" class="agent-provider-pill warn">Missing key</span></div>
-            <div class="agent-note">Tap to configure z.ai API key.</div>
-          </button>
-          <button id="providerCardOllama" class="agent-provider-card" data-provider="ollama" type="button">
+            <div id="providerNoteZai" class="agent-note">Tap to configure z.ai API key.</div>
+            <div id="providerSectionZai" class="agent-provider-inline agent-hidden">
+              <div id="zaiStoredRow" class="agent-row agent-row-tight agent-hidden">
+                <span class="agent-note">z.ai API Key Stored (Preview)</span>
+                <button id="zaiEditBtn" class="btn agent-icon-btn" type="button" aria-label="Edit z.ai key">✎</button>
+                <label class="agent-inline-mini">
+                  <span>Model</span>
+                  <select id="zaiModelStored" class="field">${renderModelOptions(FALLBACK_ZAI_MODELS)}</select>
+                </label>
+              </div>
+              <div id="zaiControls">
+                <div class="agent-row agent-row-tight">
+                  <span class="agent-note">z.ai API key</span>
+                  <div class="agent-inline-key agent-inline-key-wide">
+                    <input id="zaiKeyInput" class="field" type="password" placeholder="zai-..." />
+                    <button id="zaiSavePreviewBtn" class="btn agent-inline-key-btn" type="button" aria-label="Test z.ai key">></button>
+                  </div>
+                  <label class="agent-inline-mini">
+                    <span>Model</span>
+                    <select id="zaiModelInput" class="field">${renderModelOptions(FALLBACK_ZAI_MODELS)}</select>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="providerCardOllama" class="agent-provider-card" data-provider="ollama">
             <div class="agent-provider-head"><strong>Ollama (Local)</strong><span id="providerPillOllama" class="agent-provider-pill warn">Missing URL</span></div>
-            <div class="agent-note">Tap to configure local Ollama endpoint and model.</div>
-          </button>
-        </div>
-        <div id="providerSectionAnthropic" class="agent-provider-section agent-hidden">
-          <div id="anthropicStoredRow" class="agent-row agent-hidden">
-            <span class="agent-note">Anthropic API Key Stored (Preview)</span>
-            <button id="anthropicEditBtn" class="btn agent-icon-btn" type="button" aria-label="Edit Anthropic key">✎</button>
-            <label class="agent-inline-mini">
-              <span>Model</span>
-              <select id="anthropicModelStored" class="field">${renderModelOptions(FALLBACK_ANTHROPIC_MODELS)}</select>
-            </label>
-          </div>
-          <div id="anthropicControls">
-            <div class="agent-row agent-row-tight">
-              <span class="agent-note">Anthropic key</span>
-              <div class="agent-inline-key agent-inline-key-wide">
-                <input id="anthropicKeyInput" class="field" type="password" placeholder="sk-ant-..." />
-                <button id="anthropicSavePreviewBtn" class="btn agent-inline-key-btn" type="button" aria-label="Test Anthropic key">></button>
+            <div id="providerNoteOllama" class="agent-note">Tap to configure local Ollama endpoint and model.</div>
+            <div id="providerSectionOllama" class="agent-provider-inline agent-hidden">
+              <div id="ollamaStoredRow" class="agent-row agent-row-tight agent-hidden">
+                <span class="agent-note">Ollama Endpoint Stored (Preview)</span>
+                <button id="ollamaEditBtn" class="btn agent-icon-btn" type="button" aria-label="Edit Ollama endpoint">✎</button>
+                <label class="agent-inline-mini">
+                  <span>Model</span>
+                  <input id="ollamaModelStored" class="field" type="text" placeholder="llama3.1" />
+                </label>
               </div>
-              <label class="agent-inline-mini">
-                <span>Model</span>
-                <select id="anthropicModelInput" class="field">${renderModelOptions(FALLBACK_ANTHROPIC_MODELS)}</select>
-              </label>
+              <div id="ollamaControls">
+                <div class="agent-row agent-row-tight">
+                  <span class="agent-note">Ollama URL</span>
+                  <div class="agent-inline-key agent-inline-key-wide">
+                    <input id="ollamaBaseUrlInput" class="field" type="text" placeholder="http://localhost:11434" />
+                    <button id="ollamaSavePreviewBtn" class="btn agent-inline-key-btn" type="button" aria-label="Test Ollama endpoint">></button>
+                  </div>
+                  <label class="agent-inline-mini">
+                    <span>Model</span>
+                    <input id="ollamaModelInput" class="field" type="text" placeholder="llama3.1" />
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-        <div id="providerSectionZai" class="agent-provider-section agent-hidden">
-          <div id="zaiStoredRow" class="agent-row agent-hidden">
-            <span class="agent-note">z.ai API Key Stored (Preview)</span>
-            <button id="zaiEditBtn" class="btn agent-icon-btn" type="button" aria-label="Edit z.ai key">✎</button>
-            <label class="agent-inline-mini">
-              <span>Model</span>
-              <select id="zaiModelStored" class="field">${renderModelOptions(FALLBACK_ZAI_MODELS)}</select>
-            </label>
-          </div>
-          <div id="zaiControls">
-            <div class="agent-row agent-row-tight">
-              <span class="agent-note">z.ai API key</span>
-              <div class="agent-inline-key agent-inline-key-wide">
-                <input id="zaiKeyInput" class="field" type="password" placeholder="zai-..." />
-                <button id="zaiSavePreviewBtn" class="btn agent-inline-key-btn" type="button" aria-label="Test z.ai key">></button>
-              </div>
-              <label class="agent-inline-mini">
-                <span>Model</span>
-                <select id="zaiModelInput" class="field">${renderModelOptions(FALLBACK_ZAI_MODELS)}</select>
-              </label>
-            </div>
-          </div>
-        </div>
-        <div id="providerSectionOllama" class="agent-provider-section agent-hidden">
-          <div id="ollamaStoredRow" class="agent-row agent-hidden">
-            <span class="agent-note">Ollama Endpoint Stored (Preview)</span>
-            <button id="ollamaEditBtn" class="btn agent-icon-btn" type="button" aria-label="Edit Ollama endpoint">✎</button>
-            <label class="agent-inline-mini">
-              <span>Model</span>
-              <input id="ollamaModelStored" class="field" type="text" placeholder="llama3.1" />
-            </label>
-          </div>
-          <div id="ollamaControls">
-            <div class="agent-row agent-row-tight">
-              <span class="agent-note">Ollama endpoint</span>
-              <div class="agent-inline-key agent-inline-key-wide">
-                <input id="ollamaBaseUrlInput" class="field" type="text" placeholder="http://localhost:11434" />
-                <button id="ollamaSavePreviewBtn" class="btn agent-inline-key-btn" type="button" aria-label="Test Ollama endpoint">></button>
-              </div>
-              <label class="agent-inline-mini">
-                <span>Model</span>
-                <input id="ollamaModelInput" class="field" type="text" placeholder="llama3.1" />
-              </label>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div id="openaiStoredRow" class="agent-row agent-hidden">
-        <span class="agent-note">OpenAI API Key Stored in Vault</span>
-        <button id="openaiEditBtn" class="btn agent-icon-btn" type="button" aria-label="Edit OpenAI key">✎</button>
-        <label class="agent-inline-mini">
-          <span>Model</span>
-          <select id="modelInput" class="field"></select>
-        </label>
-      </div>
-      <div id="openaiControls">
-        <form id="openaiForm" class="agent-row agent-row-tight">
-          <span class="agent-note">OpenAI key <span id="openaiBadge" class="agent-badge warn">Missing</span></span>
-          <div class="agent-inline-key agent-inline-key-wide">
-            <input id="openaiKeyInput" class="field" type="password" placeholder="sk-..." required />
-            <button id="openaiSaveBtn" class="btn agent-inline-key-btn" type="submit" aria-label="Save OpenAI key">></button>
-          </div>
-          <label class="agent-inline-mini">
-            <span>Model</span>
-            <select id="modelInputEdit" class="field"></select>
-          </label>
-        </form>
       </div>
     </div>
   `
@@ -2130,10 +2139,15 @@ function cacheElements(){
     providerCardAnthropic: byId("providerCardAnthropic"),
     providerCardZai: byId("providerCardZai"),
     providerCardOllama: byId("providerCardOllama"),
+    providerNoteOpenai: byId("providerNoteOpenai"),
+    providerNoteAnthropic: byId("providerNoteAnthropic"),
+    providerNoteZai: byId("providerNoteZai"),
+    providerNoteOllama: byId("providerNoteOllama"),
     providerPillOpenai: byId("providerPillOpenai"),
     providerPillAnthropic: byId("providerPillAnthropic"),
     providerPillZai: byId("providerPillZai"),
     providerPillOllama: byId("providerPillOllama"),
+    providerSectionOpenai: byId("providerSectionOpenai"),
     providerSectionAnthropic: byId("providerSectionAnthropic"),
     providerSectionZai: byId("providerSectionZai"),
     providerSectionOllama: byId("providerSectionOllama"),

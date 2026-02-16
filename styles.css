@@ -1705,6 +1705,8 @@
   width: 100%;
   text-align: left;
   cursor: pointer;
+  display: grid;
+  gap: 4px;
 }
 .agent-provider-card.active{
   outline: 1px dotted var(--line);
@@ -1733,6 +1735,12 @@
   border: 1px solid var(--line);
   background: rgba(255,255,255,0.28);
   padding: 6px;
+  display: grid;
+  gap: 6px;
+}
+.agent-provider-inline{
+  border-top: 1px solid rgba(0,0,0,0.14);
+  padding-top: 5px;
   display: grid;
   gap: 6px;
 }
@@ -1957,6 +1965,9 @@ body.dark .agent-provider-pill{
 body.dark .agent-provider-section{
   background: #161b25;
   border-color: #555d6b;
+}
+body.dark .agent-provider-inline{
+  border-top-color: #555d6b;
 }
 body.dark .clippy-bubble{
   background: #1f2530;
