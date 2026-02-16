@@ -236,6 +236,7 @@ let clippyMode = false
 let clippyUi = null
 let clippyLastAssistantKey = ""
 let hitomiDesktopIcon = null
+const thinkingThreadIds = new Set()
 
 const CORE_AGENT_PANEL_IDS = ["chat", "openai", "telegram", "config", "soul", "tools", "heartbeat", "events"]
 const pendingDocSaves = new Set()
@@ -1594,6 +1595,17 @@ function pushLocalMessage(threadId, role, content){
   thread.updatedAt = Date.now()
 }
 
+function setThreadThinking(threadId, active){
+  const id = String(threadId || "").trim()
+  if (!id) return
+  if (active) thinkingThreadIds.add(id)
+  else thinkingThreadIds.delete(id)
+}
+
+function isThreadThinking(threadId){
+  return thinkingThreadIds.has(String(threadId || "").trim())
+}
+
 function threadLabelForTelegram(chat){
   const username = (chat?.username || "").trim()
   if (username) return `TG @${username}`
@@ -1880,12 +1892,15 @@ function latestAssistantMessageKey(messages){
 function getClippyChatHtml(){
   const thread = getChatOneThread()
   const messages = Array.isArray(thread?.messages) ? thread.messages : []
-  if (!messages.length) return `<div class="clippy-line">No messages yet.</div>`
+  const thinking = isThreadThinking(thread?.id)
+  if (!messages.length && !thinking) return `<div class="clippy-line">No messages yet.</div>`
   const tail = messages.slice(-16)
-  return tail.map(msg => {
+  const rendered = tail.map(msg => {
     const who = msg.role === "assistant" ? "Hitomi" : "User"
     return `<div class="clippy-line"><strong>${who}:</strong> ${escapeHtml(msg.content)}</div>`
-  }).join("")
+  })
+  if (thinking) rendered.push(`<div class="clippy-line"><strong>Hitomi:</strong> Thinking...</div>`)
+  return rendered.join("")
 }
 
 function computeNextDesktopIconPosition(extra = 0){
@@ -2168,10 +2183,11 @@ function renderChat(){
   refreshThreadPickerSoon()
   const thread = getActiveLocalThread()
   const messages = Array.isArray(thread?.messages) ? thread.messages : []
-  if (!messages.length) {
+  const thinking = isThreadThinking(thread?.id)
+  if (!messages.length && !thinking) {
     els.chatLog.innerHTML = `<div class="agent-muted">No messages yet.</div>`
   } else {
-    els.chatLog.innerHTML = messages.map(msg => {
+    const rendered = messages.map(msg => {
       const cls = msg.role === "assistant" ? "assistant" : "user"
       if (msg.role === "assistant") {
         return `<div class="agent-bubble ${cls}">
@@ -2183,7 +2199,11 @@ function renderChat(){
         </div>`
       }
       return `<div class="agent-bubble ${cls}"><div class="agent-bubble-role">User</div><div>${escapeHtml(msg.content)}</div></div>`
-    }).join("")
+    })
+    if (thinking) {
+      rendered.push(`<div class="agent-bubble assistant"><div class="agent-bubble-head"><img class="agent-avatar" src="assets/hedgey1.png" alt="Hitomi avatar" /><div class="agent-bubble-role">Hitomi</div></div><div>Thinking...</div></div>`)
+    }
+    els.chatLog.innerHTML = rendered.join("")
   }
   if (clippyMode) renderClippyBubble()
   if (clippyMode && clippyUi?.root && !clippyUi.root.classList.contains("clippy-hidden")) {
@@ -3271,19 +3291,26 @@ async function sendChat(text, { threadId } = {}){
   const thread = threadId ? appState.agent.localThreads?.[threadId] : getActiveLocalThread()
   if (!thread) throw new Error("No active chat thread.")
   pushLocalMessage(thread.id, "user", text)
-  const promptMessages = appState.agent.localThreads[thread.id]?.messages || []
-  const reply = await providerChatWithTools({
-    provider: runtime.provider,
-    apiKey: runtime.apiKey,
-    model: runtime.model,
-    ollamaBaseUrl: runtime.ollamaBaseUrl,
-    temperature: appState.config.temperature,
-    messages: promptMessages,
-  })
-  pushLocalMessage(thread.id, "assistant", reply)
-  await addEvent("chat_replied", "Hitomi replied in chat")
   await persistState()
+  setThreadThinking(thread.id, true)
   renderChat()
+  try {
+    const promptMessages = appState.agent.localThreads[thread.id]?.messages || []
+    const reply = await providerChatWithTools({
+      provider: runtime.provider,
+      apiKey: runtime.apiKey,
+      model: runtime.model,
+      ollamaBaseUrl: runtime.ollamaBaseUrl,
+      temperature: appState.config.temperature,
+      messages: promptMessages,
+    })
+    pushLocalMessage(thread.id, "assistant", reply)
+    await addEvent("chat_replied", "Hitomi replied in chat")
+    await persistState()
+  } finally {
+    setThreadThinking(thread.id, false)
+    renderChat()
+  }
 }
 
 async function heartbeatTick(){
