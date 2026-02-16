@@ -795,6 +795,25 @@ async function providerChat({ provider, apiKey, model, temperature, systemPrompt
     clearProviderApiError("openai")
     return text
   } catch (err) {
+    // z.ai GLM-5 can return 1113 for accounts without explicit GLM-5 access.
+    // Fall back once to glm-4.7 and persist to avoid repeated user-facing failures.
+    if (kind === "zai") {
+      const errText = String(err instanceof Error ? err.message : err || "")
+      const requestedModel = String(model || "").trim().toLowerCase()
+      if ((/code[:=\s]*1113/i.test(errText) || /\(429\)/.test(errText)) && requestedModel === "glm-5") {
+        try {
+          const fallbackModel = "glm-4.7"
+          const text = await zaiChat({ apiKey, model: fallbackModel, temperature, systemPrompt, messages })
+          previewProviderState.zaiModel = fallbackModel
+          if (els?.zaiModelInput) els.zaiModelInput.value = fallbackModel
+          if (els?.zaiModelStored) els.zaiModelStored.value = fallbackModel
+          persistPreviewProviderState()
+          clearProviderApiError(kind)
+          setStatus("z.ai model auto-switched to glm-4.7 after GLM-5 access error.")
+          return text
+        } catch {}
+      }
+    }
     setProviderApiError(kind, err)
     throw err
   }
