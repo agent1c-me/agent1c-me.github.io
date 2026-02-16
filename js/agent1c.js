@@ -1,4 +1,5 @@
 import { listFiles, readFileBlob, readNoteText } from "./filesystem.js"
+import { zaiChat } from "./providers/zai.js"
 
 const DEFAULT_SOUL = `# SOUL.md - Who You Are
 
@@ -595,7 +596,6 @@ async function readProviderKey(provider){
 }
 
 const XAI_BASE_URL = "https://api.x.ai/v1"
-const ZAI_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
 
 function normalizeOllamaBaseUrl(value){
   const source = String(value || "").trim()
@@ -671,35 +671,6 @@ async function xaiChat({ apiKey, model, temperature, systemPrompt, messages }){
   const json = await response.json()
   const text = json?.choices?.[0]?.message?.content
   if (!text) throw new Error("xAI returned no message.")
-  return String(text).trim()
-}
-
-async function zaiChat({ apiKey, model, temperature, systemPrompt, messages }){
-  const response = await fetch(`${ZAI_BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      temperature,
-      messages: [{ role: "system", content: systemPrompt }, ...messages.map(m => ({ role: m.role, content: m.content }))],
-    }),
-  })
-  if (!response.ok) {
-    let providerMsg = ""
-    let providerCode = ""
-    try {
-      const errJson = await response.json()
-      providerMsg = String(errJson?.error?.message || "").trim()
-      providerCode = String(errJson?.error?.code || "").trim()
-    } catch {}
-    throw new Error(`z.ai call failed (${response.status})${providerCode ? ` code=${providerCode}` : ""}${providerMsg ? `: ${providerMsg}` : ""}`)
-  }
-  const json = await response.json()
-  const text = json?.choices?.[0]?.message?.content
-  if (!text) throw new Error("z.ai returned no message.")
   return String(text).trim()
 }
 
