@@ -38,6 +38,8 @@ export function animateWindowCloseMatrix(win, opts = {}){
   windowGhost.style.opacity = "0.95";
   windowGhost.style.overflow = "hidden";
   layer.appendChild(windowGhost);
+  const prevVisibility = win.style.visibility;
+  win.style.visibility = "hidden";
 
   const chars = "01アイウエオカキクケコサシスセソナニヌネノマミムメモラリルレロ";
   const colWidth = 12;
@@ -133,6 +135,9 @@ export function animateWindowCloseMatrix(win, opts = {}){
       if (done) return;
       done = true;
       layer.remove();
+      if (opts?.restoreTargetVisibility) {
+        win.style.visibility = prevVisibility;
+      }
       resolve();
     };
     const t = setTimeout(finish, duration + 240);
