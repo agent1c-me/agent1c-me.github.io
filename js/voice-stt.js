@@ -6,7 +6,7 @@ function normalizeSpaces(text){
 }
 
 function wakeRegex(){
-  return /\b(?:hitomi|hitomy|hidomi|hi\s*to?mi|hedgey[\s-]*hog|hedgy[\s-]*hog|hedgie[\s-]*hog)\b/i;
+  return /\b(?:agentic|agentik|agentec)\b/i;
 }
 
 function extractAfterWake(text){
@@ -101,7 +101,7 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
     setStatus("idle", `Heard: ${heard}`);
     heardHintTimer = setTimeout(() => {
       if (!enabled || captureActive) return;
-      setStatus("idle", "Waiting for \"Hitomi\" or \"Hedgey Hog\"");
+      setStatus("idle", "Waiting for \"agentic\"");
     }, 1200);
   }
 
@@ -154,11 +154,11 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
       dispatchVoiceCommand(command);
       setTimeout(() => {
         if (!enabled) return;
-        setStatus("idle", "Waiting for \"Hitomi\" or \"Hedgey Hog\"");
+        setStatus("idle", "Waiting for \"agentic\"");
       }, 120);
       return;
     }
-    if (enabled) setStatus("idle", "Waiting for \"Hitomi\" or \"Hedgey Hog\"");
+    if (enabled) setStatus("idle", "Waiting for \"agentic\"");
   }
 
   function restartSilenceTimer(ms = 1200){
@@ -179,7 +179,7 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
       networkErrorCount = 0;
       networkErrorWindowStart = 0;
       currentError = "";
-      if (enabled) setStatus("idle", "Waiting for \"Hitomi\" or \"Hedgey Hog\"");
+      if (enabled) setStatus("idle", "Waiting for \"agentic\"");
     };
     recognition.onerror = (event) => {
       const err = String(event?.error || "").toLowerCase();

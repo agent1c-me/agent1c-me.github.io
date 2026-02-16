@@ -2028,7 +2028,7 @@ function voiceStatusLabel(){
   if (!s.supported) return "🎤 Speech recognition unsupported"
   if (!s.enabled) return "🎙️ Voice wake-word is off"
   if (s.status === "starting") return "🎤 Starting microphone..."
-  if (s.status === "idle") return `🎤 ${s.text || "Waiting for \"Hitomi\" or \"Hedgey Hog\""}` 
+  if (s.status === "idle") return `🎤 ${s.text || "Waiting for \"agentic\""}` 
   if (s.status === "listening") return `🎧 ${s.text || "Listening..."}`
   if (s.status === "processing") return "📝 Sending to Hitomi..."
   if (s.status === "denied") return "🚫 Microphone permission denied"
