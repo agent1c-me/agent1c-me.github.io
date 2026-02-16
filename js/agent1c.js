@@ -181,6 +181,7 @@ let openAiEditing = false
 let telegramEditing = false
 let anthropicEditing = false
 let zaiEditing = false
+let ollamaEditing = false
 let docsAutosaveTimer = null
 let loopTimingSaveTimer = null
 let configAutosaveTimer = null
@@ -222,6 +223,7 @@ const previewProviderState = {
   zaiModel: "glm-5",
   zaiValidated: false,
   ollamaBaseUrl: "http://localhost:11434",
+  ollamaModel: "llama3.1",
   ollamaValidated: false,
 }
 
@@ -243,6 +245,7 @@ function loadPreviewProviderState(){
     previewProviderState.zaiModel = String(parsed.zaiModel || previewProviderState.zaiModel)
     previewProviderState.zaiValidated = Boolean(parsed.zaiValidated)
     previewProviderState.ollamaBaseUrl = String(parsed.ollamaBaseUrl || previewProviderState.ollamaBaseUrl)
+    previewProviderState.ollamaModel = String(parsed.ollamaModel || previewProviderState.ollamaModel)
     previewProviderState.ollamaValidated = Boolean(parsed.ollamaValidated)
   } catch {}
 }
@@ -264,6 +267,8 @@ function refreshProviderPreviewUi(){
   if (els.zaiModelInput) els.zaiModelInput.value = previewProviderState.zaiModel
   if (els.zaiModelStored) els.zaiModelStored.value = previewProviderState.zaiModel
   if (els.ollamaBaseUrlInput) els.ollamaBaseUrlInput.value = previewProviderState.ollamaBaseUrl
+  if (els.ollamaModelInput) els.ollamaModelInput.value = previewProviderState.ollamaModel
+  if (els.ollamaModelStored) els.ollamaModelStored.value = previewProviderState.ollamaModel
   if (els.providerCardOpenai) els.providerCardOpenai.classList.toggle("active", editor === "openai")
   if (els.providerCardAnthropic) els.providerCardAnthropic.classList.toggle("active", editor === "anthropic")
   if (els.providerCardZai) els.providerCardZai.classList.toggle("active", editor === "zai")
@@ -280,6 +285,11 @@ function refreshProviderPreviewUi(){
     const showStored = previewProviderState.zaiValidated && !zaiEditing
     els.zaiStoredRow.classList.toggle("agent-hidden", !showStored)
     els.zaiControls.classList.toggle("agent-hidden", showStored)
+  }
+  if (els.ollamaStoredRow && els.ollamaControls) {
+    const showStored = previewProviderState.ollamaValidated && !ollamaEditing
+    els.ollamaStoredRow.classList.toggle("agent-hidden", !showStored)
+    els.ollamaControls.classList.toggle("agent-hidden", showStored)
   }
 }
 
@@ -1719,12 +1729,14 @@ function refreshUi(){
   if (els.zaiModelInput) els.zaiModelInput.disabled = !canUse
   if (els.zaiModelStored) els.zaiModelStored.disabled = !canUse
   if (els.ollamaBaseUrlInput) els.ollamaBaseUrlInput.disabled = !canUse
+  if (els.ollamaModelInput) els.ollamaModelInput.disabled = !canUse
+  if (els.ollamaModelStored) els.ollamaModelStored.disabled = !canUse
   if (els.anthropicSavePreviewBtn) els.anthropicSavePreviewBtn.disabled = !canUse
   if (els.anthropicEditBtn) els.anthropicEditBtn.disabled = !canUse
   if (els.zaiSavePreviewBtn) els.zaiSavePreviewBtn.disabled = !canUse
   if (els.zaiEditBtn) els.zaiEditBtn.disabled = !canUse
   if (els.ollamaSavePreviewBtn) els.ollamaSavePreviewBtn.disabled = !canUse
-  if (els.ollamaTestPreviewBtn) els.ollamaTestPreviewBtn.disabled = !canUse
+  if (els.ollamaEditBtn) els.ollamaEditBtn.disabled = !canUse
   if (els.modelInput) els.modelInput.disabled = !canUse
   if (els.modelInputEdit) els.modelInputEdit.disabled = !canUse
   if (els.heartbeatInput) els.heartbeatInput.disabled = !canUse
@@ -1886,7 +1898,7 @@ function openAiWindowHtml(){
           </button>
           <button id="providerCardOllama" class="agent-provider-card" data-provider="ollama" type="button">
             <div class="agent-provider-head"><strong>Ollama (Local)</strong><span id="providerPillOllama" class="agent-provider-pill warn">Preview</span></div>
-            <div class="agent-note">Tap to configure local Ollama endpoint.</div>
+            <div class="agent-note">Tap to configure local Ollama endpoint and model.</div>
           </button>
         </div>
         <div id="providerSectionAnthropic" class="agent-provider-section agent-hidden">
@@ -1936,15 +1948,27 @@ function openAiWindowHtml(){
           </div>
         </div>
         <div id="providerSectionOllama" class="agent-provider-section agent-hidden">
-          <label class="agent-form-label">
-            <span>Ollama endpoint</span>
-            <input id="ollamaBaseUrlInput" class="field" type="text" placeholder="http://localhost:11434" />
-          </label>
-          <div class="agent-row">
-            <button id="ollamaSavePreviewBtn" class="btn" type="button">Save Ollama Endpoint</button>
-            <button id="ollamaTestPreviewBtn" class="btn" type="button">Test Ollama Endpoint</button>
+          <div id="ollamaStoredRow" class="agent-row agent-hidden">
+            <span class="agent-note">Ollama Endpoint Stored (Preview)</span>
+            <button id="ollamaEditBtn" class="btn agent-icon-btn" type="button" aria-label="Edit Ollama endpoint">✎</button>
+            <label class="agent-inline-mini">
+              <span>Model</span>
+              <input id="ollamaModelStored" class="field" type="text" placeholder="llama3.1" />
+            </label>
           </div>
-          <div id="ollamaPreviewStatus" class="agent-note">No Ollama endpoint saved yet.</div>
+          <div id="ollamaControls">
+            <div class="agent-row agent-row-tight">
+              <span class="agent-note">Ollama endpoint</span>
+              <div class="agent-inline-key agent-inline-key-wide">
+                <input id="ollamaBaseUrlInput" class="field" type="text" placeholder="http://localhost:11434" />
+                <button id="ollamaSavePreviewBtn" class="btn agent-inline-key-btn" type="button" aria-label="Test Ollama endpoint">></button>
+              </div>
+              <label class="agent-inline-mini">
+                <span>Model</span>
+                <input id="ollamaModelInput" class="field" type="text" placeholder="llama3.1" />
+              </label>
+            </div>
+          </div>
         </div>
       </div>
       <div id="openaiStoredRow" class="agent-row agent-hidden">
@@ -2127,9 +2151,13 @@ function cacheElements(){
     zaiModelStored: byId("zaiModelStored"),
     zaiSavePreviewBtn: byId("zaiSavePreviewBtn"),
     zaiEditBtn: byId("zaiEditBtn"),
+    ollamaStoredRow: byId("ollamaStoredRow"),
+    ollamaControls: byId("ollamaControls"),
     ollamaBaseUrlInput: byId("ollamaBaseUrlInput"),
+    ollamaModelInput: byId("ollamaModelInput"),
+    ollamaModelStored: byId("ollamaModelStored"),
     ollamaSavePreviewBtn: byId("ollamaSavePreviewBtn"),
-    ollamaTestPreviewBtn: byId("ollamaTestPreviewBtn"),
+    ollamaEditBtn: byId("ollamaEditBtn"),
     openaiStoredRow: byId("openaiStoredRow"),
     openaiControls: byId("openaiControls"),
     openaiEditBtn: byId("openaiEditBtn"),
@@ -2402,17 +2430,6 @@ function setActivePreviewProvider(provider){
   refreshBadges().catch(() => {})
 }
 
-function isLikelyUrl(value){
-  const text = String(value || "").trim()
-  if (!text) return false
-  try {
-    const parsed = new URL(text)
-    return parsed.protocol === "http:" || parsed.protocol === "https:"
-  } catch {
-    return false
-  }
-}
-
 function wireProviderPreviewDom(){
   const cardHandlers = [
     [els.providerCardOpenai, "openai"],
@@ -2492,6 +2509,13 @@ function wireProviderPreviewDom(){
     if (els.zaiModelStored) els.zaiModelStored.value = previewProviderState.zaiModel
     persistPreviewProviderState()
   }
+  const syncOllamaModel = () => {
+    const chosen = String(els.ollamaModelInput?.value || els.ollamaModelStored?.value || previewProviderState.ollamaModel).trim()
+    previewProviderState.ollamaModel = chosen || "llama3.1"
+    if (els.ollamaModelInput) els.ollamaModelInput.value = previewProviderState.ollamaModel
+    if (els.ollamaModelStored) els.ollamaModelStored.value = previewProviderState.ollamaModel
+    persistPreviewProviderState()
+  }
   els.anthropicModelInput?.addEventListener("change", () => {
     syncAnthropicModel()
     setStatus(`Anthropic model saved: ${previewProviderState.anthropicModel}.`)
@@ -2508,26 +2532,32 @@ function wireProviderPreviewDom(){
     syncZaiModel()
     setStatus(`z.ai model saved: ${previewProviderState.zaiModel}.`)
   })
+  els.ollamaModelInput?.addEventListener("change", () => {
+    syncOllamaModel()
+    setStatus(`Ollama model saved: ${previewProviderState.ollamaModel}.`)
+  })
+  els.ollamaModelStored?.addEventListener("change", () => {
+    syncOllamaModel()
+    setStatus(`Ollama model saved: ${previewProviderState.ollamaModel}.`)
+  })
   syncAnthropicModel()
   syncZaiModel()
+  syncOllamaModel()
 
   els.ollamaSavePreviewBtn?.addEventListener("click", async () => {
     previewProviderState.ollamaBaseUrl = String(els.ollamaBaseUrlInput?.value || "").trim() || "http://localhost:11434"
     previewProviderState.ollamaValidated = true
+    ollamaEditing = false
     setActivePreviewProvider("ollama")
     persistPreviewProviderState()
     refreshProviderPreviewUi()
     await addEvent("provider_preview_saved", "Ollama endpoint saved (preview validation accepted).")
-    setStatus("Ollama endpoint saved. Active provider switched to ollama.")
+    setStatus(`Ollama endpoint saved. Active provider switched to ollama (${previewProviderState.ollamaModel}).`)
   })
-
-  els.ollamaTestPreviewBtn?.addEventListener("click", () => {
-    const url = String(els.ollamaBaseUrlInput?.value || previewProviderState.ollamaBaseUrl).trim()
-    if (!isLikelyUrl(url)) {
-      setStatus("Ollama preview test failed: endpoint must be a valid URL.")
-      return
-    }
-    setStatus("Ollama preview test passed (format only).")
+  els.ollamaEditBtn?.addEventListener("click", () => {
+    ollamaEditing = true
+    setPreviewProviderEditor("ollama")
+    els.ollamaBaseUrlInput?.focus()
   })
 
   refreshProviderPreviewUi()
