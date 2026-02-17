@@ -2337,12 +2337,80 @@ function ensureClippyAssistant(){
   menu.innerHTML = `<button class="clippy-menu-item" type="button">Close</button>`
   desktop.appendChild(menu)
   const closeBtn = menu.querySelector(".clippy-menu-item")
+  let alphaCanvas = null
+  let alphaData = null
   let dragging = false
   let moved = false
   let startX = 0
   let startY = 0
   let baseLeft = 0
   let baseTop = 0
+  function ensureBodyAlphaData(){
+    if (alphaData || !body) return
+    const iw = body.naturalWidth || body.width || 0
+    const ih = body.naturalHeight || body.height || 0
+    if (!iw || !ih) return
+    alphaCanvas = document.createElement("canvas")
+    alphaCanvas.width = iw
+    alphaCanvas.height = ih
+    const ctx = alphaCanvas.getContext("2d", { willReadFrequently: true })
+    if (!ctx) return
+    ctx.clearRect(0, 0, iw, ih)
+    ctx.drawImage(body, 0, 0, iw, ih)
+    alphaData = ctx.getImageData(0, 0, iw, ih).data
+  }
+  function isOpaqueBodyPixelAt(clientX, clientY){
+    if (!body) return false
+    ensureBodyAlphaData()
+    if (!alphaCanvas || !alphaData) return true
+    const rect = body.getBoundingClientRect()
+    if (!rect.width || !rect.height) return false
+    const rx = (clientX - rect.left) / rect.width
+    const ry = (clientY - rect.top) / rect.height
+    if (rx < 0 || rx > 1 || ry < 0 || ry > 1) return false
+    const px = Math.max(0, Math.min(alphaCanvas.width - 1, Math.floor(rx * alphaCanvas.width)))
+    const py = Math.max(0, Math.min(alphaCanvas.height - 1, Math.floor(ry * alphaCanvas.height)))
+    const ai = (py * alphaCanvas.width + px) * 4 + 3
+    return (alphaData[ai] || 0) > 18
+  }
+  function forwardPointerToUnderlying(e){
+    if (!body) return
+    body.style.pointerEvents = "none"
+    const target = document.elementFromPoint(e.clientX, e.clientY)
+    body.style.pointerEvents = ""
+    if (!target || target === body || target === root) return
+    const pointerInit = {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      pointerId: e.pointerId,
+      pointerType: e.pointerType,
+      isPrimary: e.isPrimary,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      button: e.button,
+      buttons: e.buttons,
+      ctrlKey: e.ctrlKey,
+      shiftKey: e.shiftKey,
+      altKey: e.altKey,
+      metaKey: e.metaKey,
+    }
+    try { target.dispatchEvent(new PointerEvent("pointerdown", pointerInit)) } catch {}
+    try {
+      target.dispatchEvent(new MouseEvent("mousedown", {
+        bubbles: true,
+        cancelable: true,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        button: e.button,
+        buttons: e.buttons,
+        ctrlKey: e.ctrlKey,
+        shiftKey: e.shiftKey,
+        altKey: e.altKey,
+        metaKey: e.metaKey,
+      }))
+    } catch {}
+  }
   function clampPos(){
     const dw = desktop.clientWidth || 0
     const dh = desktop.clientHeight || 0
@@ -2355,6 +2423,10 @@ function ensureClippyAssistant(){
     positionClippyBubble()
   }
   body?.addEventListener("pointerdown", (e) => {
+    if (!isOpaqueBodyPixelAt(e.clientX, e.clientY)) {
+      forwardPointerToUnderlying(e)
+      return
+    }
     e.preventDefault()
     dragging = true
     moved = false
@@ -2379,6 +2451,7 @@ function ensureClippyAssistant(){
     dragging = false
   }
   body?.addEventListener("pointerup", (e) => {
+    if (!dragging) return
     if (!moved) {
       if (bubble?.classList.contains("clippy-hidden")) showClippyBubble({ variant: "full", snapNoOverlap: true, preferAbove: true })
       else hideClippyBubble()
@@ -2390,6 +2463,7 @@ function ensureClippyAssistant(){
   })
   body?.addEventListener("pointercancel", endDrag)
   body?.addEventListener("contextmenu", (e) => {
+    if (!isOpaqueBodyPixelAt(e.clientX, e.clientY)) return
     e.preventDefault()
     const dr = desktop.getBoundingClientRect()
     menu.style.left = `${Math.max(0, e.clientX - dr.left)}px`
