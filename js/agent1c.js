@@ -1954,7 +1954,7 @@ function getClippyCompactHtml(){
   return `<div class="clippy-line">No messages yet.</div>`
 }
 
-function computeNextDesktopIconPosition(extra = 0){
+function computeNextDesktopIconPosition({ excludeEl = null } = {}){
   const desktop = document.getElementById("desktop")
   if (!desktop) return { x: 10, y: 10 }
   const iconLayer = document.getElementById("iconLayer")
@@ -1964,14 +1964,45 @@ function computeNextDesktopIconPosition(extra = 0){
   const pad = parseInt(cs.getPropertyValue("--icon-pad"), 10) || 10
   const dw = desktop.clientWidth || 0
   const dh = desktop.clientHeight || 0
-  const baseCount = iconLayer?.querySelectorAll(".desk-icon")?.length || 0
-  const idx = Math.max(0, baseCount + extra)
   const cols = Math.max(1, Math.floor((Math.max(1, dw) - pad) / cellW))
-  const col = idx % cols
-  const row = Math.floor(idx / cols)
+  const rows = Math.max(1, Math.floor((Math.max(1, dh) - pad) / cellH))
+
+  const occupied = new Set()
+  const allIcons = Array.from(iconLayer?.querySelectorAll(".desk-icon") || [])
+  for (const el of allIcons) {
+    if (!el || el === excludeEl) continue
+    const left = parseInt(el.style.left || "", 10)
+    const top = parseInt(el.style.top || "", 10)
+    if (!Number.isFinite(left) || !Number.isFinite(top)) continue
+    const col = Math.round((left - pad) / cellW)
+    const row = Math.round((dh - pad - cellH - top) / cellH)
+    if (col < 0 || row < 0) continue
+    occupied.add(`${col}:${row}`)
+  }
+
+  let selectedCol = 0
+  let selectedRow = 0
+  let found = false
+  const maxScan = Math.max(allIcons.length + 8, cols * rows)
+  for (let i = 0; i < maxScan; i += 1) {
+    const col = i % cols
+    const row = Math.floor(i / cols)
+    if (row >= rows) break
+    if (occupied.has(`${col}:${row}`)) continue
+    selectedCol = col
+    selectedRow = row
+    found = true
+    break
+  }
+
+  if (!found) {
+    selectedCol = 0
+    selectedRow = Math.max(0, rows - 1)
+  }
+
   return {
-    x: pad + col * cellW,
-    y: dh - pad - cellH - row * cellH,
+    x: pad + selectedCol * cellW,
+    y: dh - pad - cellH - selectedRow * cellH,
   }
 }
 
@@ -2005,7 +2036,7 @@ function removeHitomiDesktopIcon(){
 
 function positionHitomiDesktopIcon(){
   if (!hitomiDesktopIcon || !hitomiDesktopIcon.isConnected) return
-  const pos = computeNextDesktopIconPosition(-1)
+  const pos = computeNextDesktopIconPosition({ excludeEl: hitomiDesktopIcon })
   hitomiDesktopIcon.style.left = `${pos.x}px`
   hitomiDesktopIcon.style.top = `${pos.y}px`
 }
