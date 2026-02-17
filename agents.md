@@ -590,3 +590,140 @@ Guardrails:
 - Keep provider integration inside `js/agent1c.js` unless absolutely required elsewhere.
 - Do not alter HedgeyOS core WM/theme behavior for provider work.
 - Avoid speculative UX rewrites; keep provider rows/cards behavior consistent.
+
+---
+
+## 18) Planned Architecture: Localhost Shell Bridge (No Cloud Backend)
+
+Status:
+- Planned only. Not implemented yet.
+- This section is the architecture contract for future work.
+
+Goal:
+- Let Hitomi execute host OS shell commands through a localhost relay process.
+- Keep browser-only app model (`agent1c.me`) while delegating privileged operations to a local process explicitly installed by the user.
+
+Why this exists:
+- HedgeyOS/Agent1c currently cannot reliably access arbitrary web APIs due to CORS and cannot execute host shell directly from browser.
+- A localhost relay can:
+  1. provide safe CORS-enabled bridge for tools
+  2. execute shell commands
+  3. later proxy external HTTP for HedgeyOS Browser and tools.
+
+### 18.1 Security model (must-have)
+
+1. Bind relay to loopback only:
+- `127.0.0.1` (or `localhost`) only, never public bind.
+
+2. Strict CORS allowlist:
+- Allow only `https://agent1c.me` and optional dev origins (`http://localhost:*`).
+- Reject all other `Origin`.
+
+3. Local auth token:
+- Relay generates a random token on first run.
+- Browser must send token in header (for example `X-Agent1c-Token`).
+- Relay rejects missing/invalid token.
+- Token entered once in Agent1c UI and stored locally (vault if available).
+
+4. Non-sudo runtime warning:
+- Setup docs must instruct users to run relay as a non-sudo, non-admin user.
+- Explicit warning: do not run relay as root.
+
+5. Command execution constraints:
+- Initial version should support command timeout, output-size caps, and single-command execution per request.
+- Hard cap stdout/stderr bytes and return head/tail if large.
+
+6. Auditability:
+- Every command call/result is logged in Events with timestamp, command summary, exit code.
+
+### 18.2 Proposed relay API contract (v1)
+
+Minimal endpoints:
+- `GET /v1/health` -> relay status/version
+- `POST /v1/shell/exec` -> execute one command
+- `POST /v1/http/fetch` (future) -> CORS-safe external fetch proxy
+
+Shell request payload (`/v1/shell/exec`):
+- `command` (string)
+- `cwd` (optional)
+- `timeout_ms` (optional, capped)
+
+Shell response payload:
+- `ok` (bool)
+- `exit_code` (int)
+- `stdout` (possibly truncated)
+- `stderr` (possibly truncated)
+- `truncated` (bool)
+- `duration_ms` (int)
+
+### 18.3 Tool-call parser contract in Agent1c
+
+Tool call style remains inline token (no forced JSON mode):
+- Example: `{{tool:shell_exec|command=ls -la}}`
+
+Parser behavior:
+- Parse only explicit `tool:shell_exec` token.
+- Execute relay call.
+- Inject `TOOL_RESULT shell_exec ...` back into model loop.
+- Preserve existing multi-step tool loop behavior.
+
+Important:
+- Parser should not attempt natural-language command inference outside explicit tool tokens.
+- Keep deterministic parse path to avoid accidental shell execution.
+
+### 18.4 Prompt updates required
+
+`TOOLS.md` updates (planned):
+- Add `shell_exec` tool syntax and parameter rules.
+- Add output-size expectation (head/tail truncation possible).
+- Require concise command usage and result-grounded answers.
+
+`SOUL.md` updates (planned):
+- Clarify that Hitomi can access host OS via local relay tool when user enables it.
+- Reinforce safety behavior:
+  - never claim command succeeded without tool result
+  - prefer low-risk inspection first
+  - ask before destructive actions.
+
+### 18.5 UX flow (based on Ollama Setup pattern)
+
+Add a new setup window:
+- Name: `Local Relay Setup`
+- Triggered from Connection/API area.
+- HedgeyOS-native window (no custom non-native panel).
+
+Flow:
+1. User picks OS (Linux/macOS/Android).
+2. Show copyable setup commands in code blocks (with copy buttons).
+3. Include explicit non-sudo warning in setup text.
+4. User starts relay locally.
+5. User enters relay URL/token in Agent1c.
+6. User presses `Test Relay` -> show health check result.
+
+### 18.6 Execution safeguards (phased)
+
+Phase 1 (MVP):
+- Direct shell execution with timeout/output caps.
+- Explicit token-auth + origin-check.
+- Event logging.
+
+Phase 2:
+- Optional allowlist mode for commands.
+- Optional user-confirmation gate for mutating commands.
+
+Phase 3:
+- Reuse same relay for CORS proxy (`/v1/http/fetch`) to support HedgeyOS Browser/tooling.
+
+### 18.7 Integration boundaries
+
+- Keep HedgeyOS window manager/theme core untouched as much as possible.
+- Implement UI/tooling mostly in `js/agent1c.js` and modular helper files.
+- Relay process is external (separate repo or script package).
+
+### 18.8 Acceptance criteria (before calling done)
+
+1. User can install relay from setup instructions on supported OS.
+2. Browser can authenticate relay and pass health check.
+3. Hitomi can execute explicit `shell_exec` tool call and receive deterministic result.
+4. Events timeline records command actions and outcomes.
+5. No regression to existing provider/chat/loop flows.
