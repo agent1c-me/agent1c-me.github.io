@@ -1500,15 +1500,47 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
   }
 
   function openAppById(appId){
-    const key = String(appId || "").trim();
-    if (!key) return null;
-    if (key === "localTerminal") return createTerminalWindow();
-    if (key === "files") return createFilesWindow();
-    if (key === "browser") return createBrowserWindow();
-    if (key === "notes") return createNotesWindow();
-    const app = (appsMap || {})[key];
-    if (!app || !app.url) return null;
-    return createAppWindow(app.title || key, app.url);
+    const raw = String(appId || "").trim();
+    if (!raw) return null;
+    const key = raw.toLowerCase();
+    const norm = key.replace(/[^a-z0-9]/g, "");
+
+    // Core system apps aliases.
+    if (["localterminal", "terminal", "decenterminal"].includes(norm)) return createTerminalWindow();
+    if (["files", "file"].includes(norm)) return createFilesWindow();
+    if (["browser", "web", "webbrowser"].includes(norm)) return createBrowserWindow();
+    if (["notes", "note"].includes(norm)) return createNotesWindow();
+
+    const entries = Object.entries(appsMap || {});
+    const byIdExact = entries.find(([id]) => String(id || "").toLowerCase() === key);
+    if (byIdExact && byIdExact[1]?.url) {
+      const [id, app] = byIdExact;
+      return createAppWindow(app.title || id, app.url);
+    }
+    const byIdNorm = entries.find(([id]) => String(id || "").toLowerCase().replace(/[^a-z0-9]/g, "") === norm);
+    if (byIdNorm && byIdNorm[1]?.url) {
+      const [id, app] = byIdNorm;
+      return createAppWindow(app.title || id, app.url);
+    }
+    const byTitleExact = entries.find(([, app]) => String(app?.title || "").toLowerCase() === key);
+    if (byTitleExact && byTitleExact[1]?.url) {
+      const [id, app] = byTitleExact;
+      return createAppWindow(app.title || id, app.url);
+    }
+    const byTitleNorm = entries.find(([, app]) => String(app?.title || "").toLowerCase().replace(/[^a-z0-9]/g, "") === norm);
+    if (byTitleNorm && byTitleNorm[1]?.url) {
+      const [id, app] = byTitleNorm;
+      return createAppWindow(app.title || id, app.url);
+    }
+    const byTitleContains = entries.find(([, app]) => {
+      const t = String(app?.title || "").toLowerCase();
+      return t.includes(key) || key.includes(t);
+    });
+    if (byTitleContains && byTitleContains[1]?.url) {
+      const [id, app] = byTitleContains;
+      return createAppWindow(app.title || id, app.url);
+    }
+    return null;
   }
 
   function openUrlInBrowser(url, opts = {}){
