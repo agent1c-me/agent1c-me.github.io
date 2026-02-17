@@ -4,6 +4,7 @@ set -eu
 TOKEN="${AGENT1C_RELAY_TOKEN:-}"
 MAX_OUTPUT_CHARS="${AGENT1C_RELAY_MAX_OUTPUT_CHARS:-65536}"
 DEFAULT_TIMEOUT_MS="${AGENT1C_RELAY_DEFAULT_TIMEOUT_MS:-30000}"
+DEFAULT_FETCH_TIMEOUT_S="${AGENT1C_RELAY_FETCH_TIMEOUT_S:-25}"
 ALLOW_ORIGINS="${AGENT1C_RELAY_ALLOW_ORIGINS:-https://agent1c.me,https://www.agent1c.me,http://localhost:8000,http://127.0.0.1:8000}"
 HOST="${AGENT1C_RELAY_HOST:-127.0.0.1}"
 PORT="${AGENT1C_RELAY_PORT:-8765}"
@@ -152,6 +153,99 @@ run_shell_command(){
     '{ok:true,exitCode:$exitCode,timedOut:$timedOut,truncated:$truncated,stdout:$stdout,stderr:$stderr}'
 }
 
+header_value(){
+  file="$1"
+  key="$2"
+  grep -i "^${key}:" "$file" | tail -n 1 | cut -d: -f2- | sed 's/^ *//; s/ *$//'
+}
+
+run_http_fetch(){
+  target_url="$1"
+  mode="$2"
+  max_bytes="$3"
+  headers_file="$TMP_DIR/http.headers.txt"
+  body_file="$TMP_DIR/http.body.bin"
+  body_trim="$TMP_DIR/http.body.trim.bin"
+  effective_file="$TMP_DIR/http.effective.txt"
+
+  case "$target_url" in
+    http://*|https://*) ;;
+    *)
+      jq -nc --arg err "invalid url" '{ok:false,error:$err}'
+      return
+      ;;
+  esac
+
+  : > "$headers_file"
+  : > "$body_file"
+  : > "$effective_file"
+
+  curl_ok=1
+  if [ "$mode" = "head" ]; then
+    if curl -L -sS -I --max-time "$DEFAULT_FETCH_TIMEOUT_S" \
+      -A "Agent1cRelay/1.0" \
+      "$target_url" >"$headers_file" 2>/dev/null; then
+      curl_ok=0
+      printf "%s" "$target_url" > "$effective_file"
+    fi
+  else
+    if curl -L -sS --max-time "$DEFAULT_FETCH_TIMEOUT_S" \
+      -A "Agent1cRelay/1.0" \
+      -D "$headers_file" \
+      -o "$body_file" \
+      -w "%{url_effective}" \
+      "$target_url" >"$effective_file" 2>/dev/null; then
+      curl_ok=0
+    fi
+  fi
+
+  if [ "$curl_ok" -ne 0 ]; then
+    jq -nc --arg err "fetch failed" '{ok:false,error:$err}'
+    return
+  fi
+
+  status_code="$(awk 'BEGIN{code=0} /^HTTP\// {code=$2} END{print code}' "$headers_file")"
+  [ -n "$status_code" ] || status_code=0
+  content_type="$(header_value "$headers_file" "Content-Type")"
+  xfo="$(header_value "$headers_file" "X-Frame-Options")"
+  csp="$(header_value "$headers_file" "Content-Security-Policy")"
+  final_url="$(cat "$effective_file")"
+  [ -n "$final_url" ] || final_url="$target_url"
+
+  if [ "$mode" = "head" ]; then
+    jq -nc \
+      --argjson status "$status_code" \
+      --arg finalUrl "$final_url" \
+      --arg contentType "$content_type" \
+      --arg xFrameOptions "$xfo" \
+      --arg csp "$csp" \
+      --rawfile headers "$headers_file" \
+      '{ok:true,mode:"head",status:$status,finalUrl:$finalUrl,contentType:$contentType,xFrameOptions:$xFrameOptions,csp:$csp,headers:$headers}'
+    return
+  fi
+
+  bytes="$(wc -c < "$body_file" | tr -d ' ')"
+  truncated=0
+  if [ "$bytes" -gt "$max_bytes" ]; then
+    head -c "$max_bytes" "$body_file" > "$body_trim"
+    truncated=1
+  else
+    cp "$body_file" "$body_trim"
+  fi
+
+  truncated_json="$(json_bool "$truncated")"
+  jq -nc \
+    --argjson status "$status_code" \
+    --arg finalUrl "$final_url" \
+    --arg contentType "$content_type" \
+    --arg xFrameOptions "$xfo" \
+    --arg csp "$csp" \
+    --argjson truncated "$truncated_json" \
+    --rawfile headers "$headers_file" \
+    --rawfile body "$body_trim" \
+    '{ok:true,mode:"get",status:$status,finalUrl:$finalUrl,contentType:$contentType,xFrameOptions:$xFrameOptions,csp:$csp,truncated:$truncated,headers:$headers,body:$body}'
+}
+
 REQUEST_LINE=""
 if ! IFS= read -r REQUEST_LINE; then
   exit 0
@@ -226,6 +320,32 @@ if [ "$METHOD" = "POST" ] && [ "$PATH_ONLY" = "/v1/shell/exec" ]; then
   if [ "$timeout_ms" -lt 1000 ]; then timeout_ms=1000; fi
   if [ "$timeout_ms" -gt 120000 ]; then timeout_ms=120000; fi
   body="$(run_shell_command "$command" "$timeout_ms")"
+  send_json 200 "$body"
+  exit 0
+fi
+
+if [ "$METHOD" = "POST" ] && [ "$PATH_ONLY" = "/v1/http/fetch" ]; then
+  if ! jq -e . "$BODY_FILE" >/dev/null 2>&1; then
+    send_error 400 "invalid JSON body"
+    exit 0
+  fi
+  target_url="$(jq -r '.url // ""' "$BODY_FILE")"
+  mode="$(jq -r '.mode // "get"' "$BODY_FILE")"
+  max_bytes="$(jq -r '.max_bytes // 300000' "$BODY_FILE")"
+  case "$mode" in
+    head|get) ;;
+    *) mode="get" ;;
+  esac
+  case "$max_bytes" in
+    ''|*[!0-9]*) max_bytes=300000 ;;
+  esac
+  if [ "$max_bytes" -lt 4096 ]; then max_bytes=4096; fi
+  if [ "$max_bytes" -gt 1000000 ]; then max_bytes=1000000; fi
+  if [ -z "$target_url" ]; then
+    send_error 400 "missing url"
+    exit 0
+  fi
+  body="$(run_http_fetch "$target_url" "$mode" "$max_bytes")"
   send_json 200 "$body"
   exit 0
 fi
