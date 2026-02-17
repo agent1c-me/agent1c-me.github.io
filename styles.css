@@ -1718,6 +1718,11 @@
   height: 24px;
 }
 .agent-grid2{ display: grid; grid-template-columns: 1fr 1fr; gap: 6px 8px; }
+.agent-divider{
+  height: 1px;
+  border-top: 1px solid var(--line);
+  opacity: 0.5;
+}
 .agent-provider-preview{
   border: 1px solid var(--line);
   background: rgba(255,255,255,0.32);
