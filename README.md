@@ -37,7 +37,7 @@ Agent1c.me and HedgeyOS are both by Decentricity.
   - OpenAI (`https://api.openai.com/v1/chat/completions`)
   - Anthropic (`https://api.anthropic.com/v1/messages`)
   - xAI Grok (`https://api.x.ai/v1/chat/completions`)
-  - z.ai (`https://api.z.ai/api/coding/paas/v4/chat/completions`)
+  - z.ai (`https://open.bigmodel.cn/api/paas/v4/chat/completions`)
 
 ## Onboarding Flow
 
@@ -62,19 +62,6 @@ Agent1c.me and HedgeyOS are both by Decentricity.
 - Agent runtime is tab-bound.
 - Locking vault protects secret access, while loop intent can continue and resume API work after unlock.
 - Telegram bridge runs only when enabled and when required credentials are available.
-
-## Local Relay (Phase 1)
-
-- Phase 1 adds localhost shell bridging through a user-run relay process.
-- New tool: `shell_exec` in TOOLS.md (inline token format).
-- Relay settings are in `Config`:
-  - Enable/disable relay
-  - Relay URL
-  - Relay token (optional)
-  - Relay timeout and health test
-- Reference implementation is included at:
-  - `local-relay/agent1c_local_relay.py`
-  - `local-relay/README.md`
 
 ## AI Provider Architecture
 

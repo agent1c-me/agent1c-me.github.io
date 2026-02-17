@@ -33,8 +33,6 @@ If blocked, ask one clear follow-up question.
 
 Never fake actions or results.
 Never claim a tool succeeded unless it actually succeeded.
-If local relay tools are enabled, you can run host shell commands when the user explicitly asks.
-Be careful and exact with shell commands; report what happened clearly.
 If reminders/heartbeat triggers arrive, treat them as internal nudges and proceed calmly.
 Stay context-aware: you are inside Agent1c.me on HedgeyOS.
 
@@ -67,7 +65,6 @@ Tool call format:
 - For Wikipedia search use: {{tool:wiki_search|query=hedgehog}}
 - For Wikipedia summary use: {{tool:wiki_summary|title=Hedgehog}}
 - For GitHub public reads use: {{tool:github_repo_read|request=owner/repo issue 123}}
-- For local shell command via relay use: {{tool:shell_exec|command=pwd}}
 - Do not use JSON unless explicitly asked by the user.
 - Emit tool tokens only when needed to answer the user.
 - After tool results are returned, answer naturally for the user.
@@ -107,13 +104,6 @@ Parameters:
 Description: Reads public GitHub repo metadata, issues, PRs, and file contents.
 Use when: User asks about public GitHub repos, files, issues, or pull requests.
 
-6. shell_exec
-Parameters:
-- command: shell command to execute on localhost relay.
-- timeout_ms: optional timeout override.
-Description: Executes shell command through user-run localhost relay and returns stdout/stderr/exit code.
-Use when: User explicitly asks to run local shell commands.
-
 Policy:
 - You can access local files via these tools. Do not claim you cannot access files without trying the tools first.
 - Use list_files when you need current file inventory to answer a user request.
@@ -123,8 +113,6 @@ Policy:
 - Do not claim file contents were read unless a TOOL_RESULT read_file was returned.
 - If user asks factual web context, prefer Wikipedia tools before guessing.
 - If user asks GitHub repo/file/issue/PR questions, use github_repo_read before claiming details.
-- Use shell_exec only for explicit user-requested local actions.
-- Never claim shell command succeeded unless TOOL_RESULT shell_exec confirms exitCode=0.
 `
 
 const FALLBACK_OPENAI_MODELS = [
@@ -182,8 +170,6 @@ const ONBOARDING_OPENAI_TEST_KEY = "agent1c_onboarding_openai_tested_v1"
 const PREVIEW_PROVIDER_KEY = "agent1c_preview_providers_v1"
 const WINDOW_LAYOUT_KEY = "hedgey_window_layout_v1"
 const UNENCRYPTED_MODE_KEY = "agent1c_unencrypted_mode_v1"
-const LOCAL_RELAY_DEFAULT_URL = "http://127.0.0.1:8765"
-const LOCAL_RELAY_DEFAULT_TIMEOUT_MS = 30000
 const STORES = {
   meta: "meta",
   secrets: "secrets",
@@ -211,10 +197,6 @@ const appState = {
     heartbeatIntervalMs: 60000,
     maxContextMessages: 16,
     temperature: 0.4,
-    relayEnabled: false,
-    relayBaseUrl: LOCAL_RELAY_DEFAULT_URL,
-    relayToken: "",
-    relayTimeoutMs: LOCAL_RELAY_DEFAULT_TIMEOUT_MS,
   },
   agent: {
     soulMd: DEFAULT_SOUL,
@@ -699,12 +681,6 @@ function normalizeOllamaBaseUrl(value){
   return source.replace(/\/+$/, "")
 }
 
-function normalizeRelayBaseUrl(value){
-  const source = String(value || "").trim()
-  if (!source) return ""
-  return source.replace(/\/+$/, "")
-}
-
 async function openAiChat({ apiKey, model, temperature, systemPrompt, messages }){
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -929,8 +905,6 @@ function buildSystemPrompt(){
     "- Use list_files only when target is unclear, stale, or lookup fails.",
     "- Do not narrate a file read/open action without emitting a tool call in the same reply.",
     "- Do not claim file contents were read unless TOOL_RESULT read_file is present.",
-    "- Use shell_exec only when user explicitly asks for local shell actions.",
-    "- Never claim shell command success unless TOOL_RESULT shell_exec confirms it.",
     "Interaction policy:",
     "- Keep replies to one or two sentences unless impossible.",
     "- Ask at most one follow-up question, and only when truly blocked.",
@@ -1265,69 +1239,6 @@ async function githubRepoReadTool(args){
   return `TOOL_RESULT github_repo_read (${repoFull}):\nDescription: ${desc || "none"}\nStars: ${stars}\nForks: ${forks}\nLanguage: ${lang}\nUpdated: ${updated}`
 }
 
-async function relayJsonFetch(url, { method = "GET", token = "", body = null, timeoutMs = LOCAL_RELAY_DEFAULT_TIMEOUT_MS } = {}){
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), Math.max(1000, Number(timeoutMs) || LOCAL_RELAY_DEFAULT_TIMEOUT_MS))
-  try {
-    const headers = {}
-    if (token) headers["x-agent1c-token"] = token
-    if (body !== null) headers["Content-Type"] = "application/json"
-    const response = await fetch(url, {
-      method,
-      mode: "cors",
-      headers,
-      body: body !== null ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
-    })
-    const json = await response.json().catch(() => null)
-    if (!response.ok) {
-      const msg = String(json?.error || json?.message || "").trim()
-      throw new Error(`relay failed (${response.status})${msg ? `: ${msg}` : ""}`)
-    }
-    return json || {}
-  } catch (err) {
-    if (err?.name === "AbortError") throw new Error("relay timeout")
-    throw err
-  } finally {
-    clearTimeout(timer)
-  }
-}
-
-async function shellExecTool(args){
-  const relayEnabled = appState.config.relayEnabled === true
-  const relayBaseUrl = normalizeRelayBaseUrl(appState.config.relayBaseUrl || LOCAL_RELAY_DEFAULT_URL)
-  const relayToken = String(appState.config.relayToken || "").trim()
-  if (!relayEnabled) return "TOOL_RESULT shell_exec: local relay is disabled in Config."
-  if (!relayBaseUrl) return "TOOL_RESULT shell_exec: relay URL is missing in Config."
-  const command = String(args?.command || args?.cmd || "").trim()
-  if (!command) return "TOOL_RESULT shell_exec: missing command parameter"
-  const timeoutMs = Math.max(1000, Math.min(120000, Number(args?.timeout_ms) || Number(appState.config.relayTimeoutMs) || LOCAL_RELAY_DEFAULT_TIMEOUT_MS))
-  await addEvent("shell_exec_requested", command.slice(0, 160))
-  const url = `${relayBaseUrl}/v1/shell/exec`
-  const json = await relayJsonFetch(url, {
-    method: "POST",
-    token: relayToken,
-    timeoutMs: timeoutMs + 1500,
-    body: {
-      command,
-      timeout_ms: timeoutMs,
-    },
-  })
-  const exitCode = Number(json?.exitCode ?? -1)
-  const timedOut = Boolean(json?.timedOut)
-  const truncated = Boolean(json?.truncated)
-  const stdout = excerptForToolText(String(json?.stdout || ""), 7000)
-  const stderr = excerptForToolText(String(json?.stderr || ""), 5000)
-  await addEvent("shell_exec_result", `exit=${exitCode}${timedOut ? " timeout" : ""}${truncated ? " truncated" : ""}`)
-  return [
-    `TOOL_RESULT shell_exec: exitCode=${exitCode}${timedOut ? " timedOut=true" : ""}${truncated ? " truncated=true" : ""}`,
-    "[STDOUT]",
-    stdout || "(empty)",
-    "[STDERR]",
-    stderr || "(empty)",
-  ].join("\n")
-}
-
 async function maybeInjectAutoToolResults(messages){
   const text = latestUserText(messages).trim()
   if (!text) return []
@@ -1365,9 +1276,6 @@ async function runToolCall(call){
   }
   if (call.name === "github_repo_read") {
     return githubRepoReadTool(call.args || {})
-  }
-  if (call.name === "shell_exec") {
-    return shellExecTool(call.args || {})
   }
   return `TOOL_RESULT ${call.name}: unsupported`
 }
@@ -2546,10 +2454,6 @@ function saveDraftFromInputs(){
   else if (els.heartbeatInput) appState.config.heartbeatIntervalMs = Math.max(5000, Number(els.heartbeatInput.value) || 60000)
   if (els.contextInput) appState.config.maxContextMessages = Math.max(4, Math.min(64, Number(els.contextInput.value) || 16))
   if (els.temperatureInput) appState.config.temperature = Math.max(0, Math.min(1.5, Number(els.temperatureInput.value) || 0.4))
-  if (els.relayEnabledSelect) appState.config.relayEnabled = els.relayEnabledSelect.value === "on"
-  if (els.relayTimeoutInput) appState.config.relayTimeoutMs = Math.max(1000, Math.min(120000, Number(els.relayTimeoutInput.value) || LOCAL_RELAY_DEFAULT_TIMEOUT_MS))
-  if (els.relayBaseUrlInput) appState.config.relayBaseUrl = normalizeRelayBaseUrl(els.relayBaseUrlInput.value || LOCAL_RELAY_DEFAULT_URL) || LOCAL_RELAY_DEFAULT_URL
-  if (els.relayTokenInput) appState.config.relayToken = String(els.relayTokenInput.value || "").trim()
   if (els.telegramPollInput) appState.telegramPollMs = Math.max(1000, Math.floor((Number(els.telegramPollInput.value) || 15) * 1000))
   if (els.telegramEnabledSelect) appState.telegramEnabled = els.telegramEnabledSelect.value === "on"
   if (els.soulInput) appState.agent.soulMd = els.soulInput.value
@@ -2564,11 +2468,6 @@ function loadInputsFromState(){
   if (els.loopHeartbeatMinInput) els.loopHeartbeatMinInput.value = String(Math.max(1, Math.round(appState.config.heartbeatIntervalMs / 60000)))
   if (els.contextInput) els.contextInput.value = String(appState.config.maxContextMessages)
   if (els.temperatureInput) els.temperatureInput.value = String(appState.config.temperature)
-  if (els.relayEnabledSelect) els.relayEnabledSelect.value = appState.config.relayEnabled ? "on" : "off"
-  if (els.relayTimeoutInput) els.relayTimeoutInput.value = String(Math.max(1000, Number(appState.config.relayTimeoutMs) || LOCAL_RELAY_DEFAULT_TIMEOUT_MS))
-  if (els.relayBaseUrlInput) els.relayBaseUrlInput.value = normalizeRelayBaseUrl(appState.config.relayBaseUrl || LOCAL_RELAY_DEFAULT_URL)
-  if (els.relayTokenInput) els.relayTokenInput.value = String(appState.config.relayToken || "")
-  if (els.relayStatus) els.relayStatus.textContent = appState.config.relayEnabled ? "Relay enabled." : "Relay disabled."
   if (els.telegramPollInput) els.telegramPollInput.value = String(Math.max(1, Math.round(appState.telegramPollMs / 1000)))
   if (els.telegramEnabledSelect) els.telegramEnabledSelect.value = appState.telegramEnabled ? "on" : "off"
   if (els.soulInput) els.soulInput.value = appState.agent.soulMd
@@ -2726,11 +2625,6 @@ function refreshUi(){
   if (els.heartbeatInput) els.heartbeatInput.disabled = !canUse
   if (els.contextInput) els.contextInput.disabled = !canUse
   if (els.temperatureInput) els.temperatureInput.disabled = !canUse
-  if (els.relayEnabledSelect) els.relayEnabledSelect.disabled = !canUse
-  if (els.relayTimeoutInput) els.relayTimeoutInput.disabled = !canUse
-  if (els.relayBaseUrlInput) els.relayBaseUrlInput.disabled = !canUse
-  if (els.relayTokenInput) els.relayTokenInput.disabled = !canUse
-  if (els.relayTestBtn) els.relayTestBtn.disabled = !canUse
   if (els.loopHeartbeatMinInput) els.loopHeartbeatMinInput.disabled = !canUse
   if (els.telegramPollInput) els.telegramPollInput.disabled = !canUse
   if (els.telegramEnabledSelect) els.telegramEnabledSelect.disabled = !canUse
@@ -3380,33 +3274,6 @@ function configWindowHtml(){
           </div>
         </div>
       </label>
-      <div class="agent-divider"></div>
-      <div class="agent-note"><strong>Local Relay (Phase 1)</strong></div>
-      <div class="agent-grid2">
-        <label class="agent-form-label">
-          <span>Relay</span>
-          <select id="relayEnabledSelect" class="field">
-            <option value="off">Disabled</option>
-            <option value="on">Enabled</option>
-          </select>
-        </label>
-        <label class="agent-form-label">
-          <span>Timeout (ms)</span>
-          <input id="relayTimeoutInput" class="field" type="number" min="1000" max="120000" step="1000" />
-        </label>
-      </div>
-      <label class="agent-form-label">
-        <span>Relay URL</span>
-        <input id="relayBaseUrlInput" class="field" type="text" placeholder="http://127.0.0.1:8765" />
-      </label>
-      <label class="agent-form-label">
-        <span>Relay token (optional)</span>
-        <input id="relayTokenInput" class="field" type="password" placeholder="local relay token" />
-      </label>
-      <div class="agent-row agent-wrap-row">
-        <button id="relayTestBtn" class="btn" type="button">Test Relay</button>
-        <span id="relayStatus" class="agent-note">Relay idle.</span>
-      </div>
       <div class="agent-row agent-wrap-row">
         <button id="startLoopBtn" class="btn" type="button">Start Agent Loop</button>
         <button id="stopLoopBtn" class="btn" type="button">Stop Loop</button>
@@ -3553,12 +3420,6 @@ function cacheElements(){
     loopHeartbeatDownBtn: byId("loopHeartbeatDownBtn"),
     contextInput: byId("contextInput"),
     temperatureInput: byId("temperatureInput"),
-    relayEnabledSelect: byId("relayEnabledSelect"),
-    relayTimeoutInput: byId("relayTimeoutInput"),
-    relayBaseUrlInput: byId("relayBaseUrlInput"),
-    relayTokenInput: byId("relayTokenInput"),
-    relayTestBtn: byId("relayTestBtn"),
-    relayStatus: byId("relayStatus"),
     telegramPollInput: byId("telegramPollInput"),
     telegramEnabledSelect: byId("telegramEnabledSelect"),
     telegramBridgeState: byId("telegramBridgeState"),
@@ -3622,22 +3483,6 @@ async function validateTelegramToken(token){
   if (!candidate) throw new Error("No Telegram token available.")
   const username = await testTelegramToken(candidate)
   return { token: candidate, username }
-}
-
-async function testLocalRelay(){
-  const relayBaseUrl = normalizeRelayBaseUrl(appState.config.relayBaseUrl || LOCAL_RELAY_DEFAULT_URL)
-  if (!relayBaseUrl) throw new Error("Relay URL is missing.")
-  const relayToken = String(appState.config.relayToken || "").trim()
-  const health = await relayJsonFetch(`${relayBaseUrl}/v1/health`, {
-    method: "GET",
-    token: relayToken,
-    timeoutMs: Math.max(1000, Number(appState.config.relayTimeoutMs) || LOCAL_RELAY_DEFAULT_TIMEOUT_MS),
-  })
-  return {
-    ok: true,
-    version: String(health?.version || "unknown"),
-    mode: String(health?.mode || "unknown"),
-  }
 }
 
 async function sendChat(text, { threadId } = {}){
@@ -4177,37 +4022,11 @@ function wireMainDom(){
   els.contextInput?.addEventListener("change", () => {
     scheduleConfigAutosave()
   })
-  els.relayEnabledSelect?.addEventListener("change", () => {
-    scheduleConfigAutosave()
-  })
-  els.relayTimeoutInput?.addEventListener("change", () => {
-    scheduleConfigAutosave()
-  })
-  els.relayBaseUrlInput?.addEventListener("change", () => {
-    scheduleConfigAutosave()
-  })
-  els.relayTokenInput?.addEventListener("change", () => {
-    scheduleConfigAutosave()
-  })
   els.telegramPollInput?.addEventListener("change", () => {
     scheduleConfigAutosave()
   })
   els.telegramEnabledSelect?.addEventListener("change", () => {
     scheduleConfigAutosave()
-  })
-  els.relayTestBtn?.addEventListener("click", async () => {
-    try {
-      saveDraftFromInputs()
-      if (els.relayStatus) els.relayStatus.textContent = "Testing relay..."
-      const result = await testLocalRelay()
-      if (els.relayStatus) els.relayStatus.textContent = `Relay ok (${result.version}, ${result.mode}).`
-      await addEvent("relay_test_ok", `Relay healthy at ${normalizeRelayBaseUrl(appState.config.relayBaseUrl)}`)
-      setStatus("Relay test passed.")
-    } catch (err) {
-      if (els.relayStatus) els.relayStatus.textContent = "Relay test failed."
-      await addEvent("relay_test_failed", err instanceof Error ? err.message : "Relay test failed")
-      setStatus(err instanceof Error ? err.message : "Relay test failed")
-    }
   })
 
   if (els.chatForm) {
@@ -4441,10 +4260,6 @@ async function loadPersistentState(){
     appState.config.heartbeatIntervalMs = Math.max(5000, Number(cfg.heartbeatIntervalMs) || appState.config.heartbeatIntervalMs)
     appState.config.maxContextMessages = Math.max(4, Math.min(64, Number(cfg.maxContextMessages) || appState.config.maxContextMessages))
     appState.config.temperature = Math.max(0, Math.min(1.5, Number(cfg.temperature) || appState.config.temperature))
-    appState.config.relayEnabled = cfg.relayEnabled === true
-    appState.config.relayBaseUrl = normalizeRelayBaseUrl(cfg.relayBaseUrl || appState.config.relayBaseUrl || LOCAL_RELAY_DEFAULT_URL) || LOCAL_RELAY_DEFAULT_URL
-    appState.config.relayToken = String(cfg.relayToken || "")
-    appState.config.relayTimeoutMs = Math.max(1000, Math.min(120000, Number(cfg.relayTimeoutMs) || appState.config.relayTimeoutMs || LOCAL_RELAY_DEFAULT_TIMEOUT_MS))
     appState.telegramEnabled = cfg.telegramEnabled !== false
     appState.telegramPollMs = Math.max(5000, Number(cfg.telegramPollMs) || appState.telegramPollMs)
   }

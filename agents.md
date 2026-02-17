@@ -727,35 +727,3 @@ Phase 3:
 3. Hitomi can execute explicit `shell_exec` tool call and receive deterministic result.
 4. Events timeline records command actions and outcomes.
 5. No regression to existing provider/chat/loop flows.
-
-### 18.9 Phase 1 implementation (completed)
-
-Implemented in this repo:
-
-- Browser wiring (`js/agent1c.js`):
-  - Added `shell_exec` tool handling in `runToolCall`.
-  - Added relay HTTP helper with timeout and JSON error parsing.
-  - Added shell execution event logging:
-    - `shell_exec_requested`
-    - `shell_exec_result`
-  - Added Config UI controls for relay:
-    - enable/disable
-    - timeout
-    - base URL
-    - token
-    - Test Relay button/status
-  - Added config persistence fields:
-    - `relayEnabled`
-    - `relayBaseUrl`
-    - `relayToken`
-    - `relayTimeoutMs`
-  - Updated default prompt policy to include shell tool grounding.
-
-- Prompt docs:
-  - Updated in-app default `DEFAULT_TOOLS` and root `TOOLS.md` with `shell_exec`.
-  - Updated default `SOUL` behavior notes for relay-aware execution honesty.
-
-- Local relay module:
-  - Added `local-relay/agent1c_local_relay.py` (stdlib only).
-  - Added `local-relay/README.md` with run instructions and env vars.
-  - Relay binds loopback by default, has CORS allowlist, optional token auth, timeout + output truncation caps.
