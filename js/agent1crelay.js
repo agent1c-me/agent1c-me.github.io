@@ -67,9 +67,7 @@ function relayInstallBaseUrl(){
 function relaySetupByOs(os){
   const base = relayInstallBaseUrl()
   const installCmd = `curl -fsSL ${base}/install.sh | sh`
-  const tokenStart = `AGENT1C_RELAY_TOKEN="change-me" ~/.agent1c-relay/agent1c-relay.sh`
   const healthNoToken = `curl -s -H "Origin: https://agent1c.me" http://127.0.0.1:8765/v1/health`
-  const healthWithToken = `curl -s -H "Origin: https://agent1c.me" -H "x-agent1c-token: change-me" http://127.0.0.1:8765/v1/health`
   if (os === "mac") {
     return {
       label: "macOS",
@@ -79,10 +77,8 @@ function relaySetupByOs(os){
       installCmd,
       startTitle: "Step 3: Start relay",
       startCmd: "~/.agent1c-relay/agent1c-relay.sh",
-      tokenTitle: "Optional: start with token",
-      tokenCmd: tokenStart,
       verifyTitle: "Step 4: Verify relay is alive",
-      verifyCmd: `${healthNoToken}\n${healthWithToken}`,
+      verifyCmd: healthNoToken,
       caveat: "Run as normal user (not sudo). If browser blocks local private-network requests, use a browser build that allows localhost private-network CORS from HTTPS origin.",
     }
   }
@@ -95,10 +91,8 @@ function relaySetupByOs(os){
       installCmd: "pkg update && pkg install -y curl jq socat",
       startTitle: "Step 2: Install and start relay",
       startCmd: `${installCmd}\n~/.agent1c-relay/agent1c-relay.sh`,
-      tokenTitle: "Optional: start with token",
-      tokenCmd: tokenStart,
       verifyTitle: "Step 3: Verify + browser private-network note",
-      verifyCmd: `${healthNoToken}\n${healthWithToken}`,
+      verifyCmd: healthNoToken,
       caveat: "Android browsers may block HTTPS->localhost private-network requests. Ensure your browser permits local private-network CORS for agent1c.me.",
     }
   }
@@ -110,10 +104,8 @@ function relaySetupByOs(os){
     installCmd,
     startTitle: "Step 3: Start relay",
     startCmd: "~/.agent1c-relay/agent1c-relay.sh",
-    tokenTitle: "Optional: start with token",
-    tokenCmd: tokenStart,
     verifyTitle: "Step 4: Verify relay is alive",
-    verifyCmd: `${healthNoToken}\n${healthWithToken}`,
+    verifyCmd: healthNoToken,
     caveat: "Run as normal user (not sudo). If your distro does not use apt, install jq+socat using your package manager.",
   }
 }
@@ -155,9 +147,10 @@ export function shellRelayWindowHtml(){
         <div class="agent-note">This enables localhost shell tools for Hitomi. Setup is shell-only and local to your device.</div>
         <div class="agent-note agent-note-warn">Warning: run relay as non-root/non-sudo user.</div>
       </div>
-      <div class="agent-device-tabs">
-        <button id="relayMainTabSetup" class="btn agent-device-tab active" type="button" data-relay-main-tab="setup">Setup</button>
-        <button id="relayMainTabConnect" class="btn agent-device-tab" type="button" data-relay-main-tab="connect">Connect</button>
+      <div class="agent-main-tabs">
+        <button id="relayMainTabSetup" class="agent-main-tab active" type="button" data-relay-main-tab="setup">Setup</button>
+        <button id="relayMainTabConnect" class="agent-main-tab" type="button" data-relay-main-tab="connect">Connect</button>
+        <button id="relayMainTabTest" class="agent-main-tab" type="button" data-relay-main-tab="test">Test</button>
       </div>
       <div id="relayPageSetup" class="agent-relay-page">
         <div class="agent-device-tabs">
@@ -172,7 +165,6 @@ export function shellRelayWindowHtml(){
             ${codeCard(os.depsTitle, os.depsCmd, "deps")}
             ${codeCard(os.installTitle, os.installCmd, "install")}
             ${codeCard(os.startTitle, os.startCmd, "start")}
-            ${codeCard(os.tokenTitle, os.tokenCmd, "token")}
             ${codeCard(os.verifyTitle, os.verifyCmd, "verify")}
             <div class="agent-note">${os.caveat}</div>
           </div>
@@ -209,6 +201,16 @@ export function shellRelayWindowHtml(){
           <span id="relayWindowStatus" class="agent-note">Relay idle.</span>
         </div>
       </div>
+      <div id="relayPageTest" class="agent-relay-page agent-hidden">
+        <div id="relayTestWarning" class="agent-note agent-note-warn">Relay not connected yet. Configure and test relay in Connect tab first.</div>
+        <div class="agent-note">Run local shell commands directly through relay (without LLM).</div>
+        <div class="agent-row">
+          <input id="relayTestCommandInput" class="field" type="text" placeholder="echo hello" />
+          <button id="relayTestRunBtn" class="btn" type="button">Run</button>
+          <button id="relayTestClearBtn" class="btn" type="button">Clear</button>
+        </div>
+        <pre id="relayTestOutput" class="agent-setup-code"></pre>
+      </div>
     </div>
   `
 }
@@ -221,7 +223,6 @@ function renderRelaySetupBody(os){
       ${codeCard(info.depsTitle, info.depsCmd, "deps")}
       ${codeCard(info.installTitle, info.installCmd, "install")}
       ${codeCard(info.startTitle, info.startCmd, "start")}
-      ${codeCard(info.tokenTitle, info.tokenCmd, "token")}
       ${codeCard(info.verifyTitle, info.verifyCmd, "verify")}
       <div class="agent-note">${info.caveat}</div>
     </div>
@@ -232,8 +233,10 @@ export function cacheShellRelayElements(byId){
   return {
     relayMainTabSetup: byId("relayMainTabSetup"),
     relayMainTabConnect: byId("relayMainTabConnect"),
+    relayMainTabTest: byId("relayMainTabTest"),
     relayPageSetup: byId("relayPageSetup"),
     relayPageConnect: byId("relayPageConnect"),
+    relayPageTest: byId("relayPageTest"),
     relayNextBtn: byId("relayNextBtn"),
     relayWindowEnabledSelect: byId("relayWindowEnabledSelect"),
     relayWindowTimeoutInput: byId("relayWindowTimeoutInput"),
@@ -242,6 +245,11 @@ export function cacheShellRelayElements(byId){
     relayWindowSaveBtn: byId("relayWindowSaveBtn"),
     relayWindowTestBtn: byId("relayWindowTestBtn"),
     relayWindowStatus: byId("relayWindowStatus"),
+    relayTestWarning: byId("relayTestWarning"),
+    relayTestCommandInput: byId("relayTestCommandInput"),
+    relayTestRunBtn: byId("relayTestRunBtn"),
+    relayTestClearBtn: byId("relayTestClearBtn"),
+    relayTestOutput: byId("relayTestOutput"),
     relaySetupBody: byId("relaySetupBody"),
   }
 }
@@ -327,11 +335,15 @@ export function wireShellRelayDom({ root, els, getRelayConfig, onSaveRelayConfig
   if (els.relayWindowStatus) els.relayWindowStatus.textContent = cfg.enabled ? "Relay enabled." : "Relay disabled."
 
   const setMainTab = (tab) => {
+    const isSetup = tab === "setup"
     const isConnect = tab === "connect"
-    els.relayMainTabSetup?.classList.toggle("active", !isConnect)
+    const isTest = tab === "test"
+    els.relayMainTabSetup?.classList.toggle("active", isSetup)
     els.relayMainTabConnect?.classList.toggle("active", isConnect)
-    els.relayPageSetup?.classList.toggle("agent-hidden", isConnect)
+    els.relayMainTabTest?.classList.toggle("active", isTest)
+    els.relayPageSetup?.classList.toggle("agent-hidden", !isSetup)
     els.relayPageConnect?.classList.toggle("agent-hidden", !isConnect)
+    els.relayPageTest?.classList.toggle("agent-hidden", !isTest)
   }
 
   const saveFromInputs = async () => {
@@ -350,6 +362,7 @@ export function wireShellRelayDom({ root, els, getRelayConfig, onSaveRelayConfig
   setMainTab(defaultMainTab)
   els.relayMainTabSetup?.addEventListener("click", () => setMainTab("setup"))
   els.relayMainTabConnect?.addEventListener("click", () => setMainTab("connect"))
+  els.relayMainTabTest?.addEventListener("click", () => setMainTab("test"))
   els.relayNextBtn?.addEventListener("click", () => setMainTab("connect"))
 
   const tabs = Array.from(root.querySelectorAll(".agent-device-tab[data-relay-os]"))
@@ -399,6 +412,57 @@ export function wireShellRelayDom({ root, els, getRelayConfig, onSaveRelayConfig
       if (els.relayWindowStatus) els.relayWindowStatus.textContent = "Relay test failed."
       await addEvent?.("relay_test_failed", err instanceof Error ? err.message : "Relay test failed")
       setStatus?.(err instanceof Error ? err.message : "Relay test failed")
+    }
+  })
+
+  const updateTestWarning = () => {
+    const isConnected = relayConnectedOnce()
+    els.relayTestWarning?.classList.toggle("agent-hidden", isConnected)
+  }
+  updateTestWarning()
+  els.relayTestClearBtn?.addEventListener("click", () => {
+    if (els.relayTestOutput) els.relayTestOutput.textContent = ""
+  })
+  els.relayTestRunBtn?.addEventListener("click", async () => {
+    const command = String(els.relayTestCommandInput?.value || "").trim()
+    if (!command) {
+      setStatus?.("Enter a command first.")
+      return
+    }
+    try {
+      await saveFromInputs()
+      updateTestWarning()
+      if (els.relayTestOutput) els.relayTestOutput.textContent = "Running..."
+      const current = normalizeRelayConfig(getRelayConfig?.() || RELAY_DEFAULTS)
+      const result = await relayJsonFetch(`${current.baseUrl}/v1/shell/exec`, {
+        method: "POST",
+        token: current.token,
+        timeoutMs: current.timeoutMs + 1000,
+        body: {
+          command,
+          timeout_ms: current.timeoutMs,
+        },
+      })
+      const exitCode = Number(result?.exitCode ?? -1)
+      const timedOut = Boolean(result?.timedOut)
+      const truncated = Boolean(result?.truncated)
+      const out = String(result?.stdout || "")
+      const err = String(result?.stderr || "")
+      if (els.relayTestOutput) {
+        els.relayTestOutput.textContent = [
+          `exitCode=${exitCode}${timedOut ? " timedOut=true" : ""}${truncated ? " truncated=true" : ""}`,
+          "",
+          "[STDOUT]",
+          out || "(empty)",
+          "",
+          "[STDERR]",
+          err || "(empty)",
+        ].join("\n")
+      }
+      setStatus?.("Relay test command completed.")
+    } catch (err) {
+      if (els.relayTestOutput) els.relayTestOutput.textContent = err instanceof Error ? err.message : "Command failed."
+      setStatus?.(err instanceof Error ? err.message : "Command failed.")
     }
   })
 }

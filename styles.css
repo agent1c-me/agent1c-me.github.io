@@ -1840,6 +1840,31 @@
   gap: 6px;
   flex-wrap: wrap;
 }
+.agent-main-tabs{
+  display: flex;
+  gap: 2px;
+  align-items: end;
+  border-bottom: 1px solid var(--line);
+  padding-top: 2px;
+}
+.agent-main-tab{
+  appearance: none;
+  border: 1px solid var(--line);
+  border-bottom: none;
+  background: var(--os-face);
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.2;
+  padding: 4px 10px 3px 10px;
+  cursor: pointer;
+}
+.agent-main-tab.active{
+  background: #dbe8ff;
+  border-color: #4069b3;
+  position: relative;
+  top: 1px;
+}
 .agent-device-tab{
   min-width: 84px;
 }
