@@ -1477,6 +1477,59 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     });
   }
 
+  function listWindows(){
+    return Array.from(state.entries())
+      .map(([id, st]) => ({
+        id,
+        title: st.title || getTitle(st.win),
+        minimized: !!st.minimized,
+        kind: st.kind || "",
+        panelId: st.panelId || "",
+        zIndex: parseInt(st.win?.style?.zIndex || "0", 10) || 0,
+      }))
+      .sort((a, b) => b.zIndex - a.zIndex);
+  }
+
+  function findWindowByTitle(title){
+    const needle = String(title || "").trim().toLowerCase();
+    if (!needle) return null;
+    const wins = listWindows();
+    const exact = wins.find(w => String(w.title || "").trim().toLowerCase() === needle);
+    if (exact) return exact;
+    return wins.find(w => String(w.title || "").toLowerCase().includes(needle)) || null;
+  }
+
+  function openAppById(appId){
+    const key = String(appId || "").trim();
+    if (!key) return null;
+    if (key === "localTerminal") return createTerminalWindow();
+    if (key === "files") return createFilesWindow();
+    if (key === "browser") return createBrowserWindow();
+    if (key === "notes") return createNotesWindow();
+    const app = (appsMap || {})[key];
+    if (!app || !app.url) return null;
+    return createAppWindow(app.title || key, app.url);
+  }
+
+  function openUrlInBrowser(url, opts = {}){
+    const target = String(url || "").trim();
+    if (!target) return { ok: false, error: "missing url" };
+    const existing = findWindowByTitle("Browser");
+    let browserId = existing?.id || null;
+    if (!browserId || opts.newWindow) browserId = createBrowserWindow();
+    if (!browserId) return { ok: false, error: "browser window unavailable" };
+    restore(browserId);
+    focus(browserId);
+    const st = state.get(browserId);
+    if (!st?.win) return { ok: false, error: "browser state unavailable" };
+    const field = st.win.querySelector("[data-urlfield]");
+    const goBtn = st.win.querySelector("[data-go]");
+    if (!field || !goBtn) return { ok: false, error: "browser controls unavailable" };
+    field.value = target;
+    goBtn.click();
+    return { ok: true, id: browserId, title: st.title || "Browser", url: target };
+  }
+
   function clearTileSnapshot(){
     tileSnapshot = null;
   }
@@ -1694,7 +1747,12 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     refreshOpenWindowsMenu,
     refreshIcons,
     focus,
+    minimize,
     restore,
+    listWindows,
+    findWindowByTitle,
+    openAppById,
+    openUrlInBrowser,
     restoreLayoutSession: restoreNonAgentWindowsFromSnapshot,
   };
 }

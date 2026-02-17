@@ -77,6 +77,8 @@ Tool call format:
 - For Wikipedia summary use: {{tool:wiki_summary|title=Hedgehog}}
 - For GitHub public reads use: {{tool:github_repo_read|request=owner/repo issue 123}}
 - For localhost shell relay use: {{tool:shell_exec|command=pwd}}
+- For visible HedgeyOS actions use: {{tool:wm_action|action=list_windows}}
+- For visible browser open use: {{tool:wm_action|action=open_url|url=https://example.com}}
 - Do not use JSON unless explicitly asked by the user.
 - Emit tool tokens only when needed to answer the user.
 - After tool results are returned, answer naturally for the user.
@@ -123,6 +125,15 @@ Parameters:
 Description: Executes local shell command via user-run localhost relay.
 Use when: User explicitly asks for local command execution.
 
+7. wm_action
+Parameters:
+- action: list_windows | tile | arrange | focus_window | minimize_window | restore_window | open_app | open_url
+- title: window title for focus/minimize/restore (optional per action)
+- app: app id for open_app (optional per action)
+- url: target URL for open_url (optional per action)
+Description: Controls visible native HedgeyOS window-manager/browser actions.
+Use when: User asks to manipulate desktop windows/apps or open a website visibly in native Browser.
+
 Policy:
 - You can access local files via these tools. Do not claim you cannot access files without trying the tools first.
 - Use list_files when you need current file inventory to answer a user request.
@@ -134,6 +145,8 @@ Policy:
 - If user asks GitHub repo/file/issue/PR questions, use github_repo_read before claiming details.
 - Use shell_exec only for explicit user-requested local actions.
 - Never claim command success unless TOOL_RESULT shell_exec confirms it.
+- For visible desktop requests, use wm_action rather than narrating intent.
+- If asked to open a website, use wm_action open_url so user sees it in native Browser.
 `
 
 const FALLBACK_OPENAI_MODELS = [
@@ -935,6 +948,8 @@ function buildSystemPrompt(){
     "- Do not claim file contents were read unless TOOL_RESULT read_file is present.",
     "- Use shell_exec only when user explicitly asks for local shell actions.",
     "- Never claim shell command success unless TOOL_RESULT shell_exec confirms it.",
+    "- For desktop/window/app actions, emit wm_action tool calls.",
+    "- For opening websites, use wm_action action=open_url so the native Browser visibly navigates.",
     "Interaction policy:",
     "- Keep replies to one or two sentences unless impossible.",
     "- Ask at most one follow-up question, and only when truly blocked.",
@@ -1315,6 +1330,77 @@ async function runToolCall(call){
       addEvent,
       excerptForToolText,
     })
+  }
+  if (call.name === "wm_action") {
+    const args = call.args || {}
+    const action = String(args.action || "").trim().toLowerCase()
+    if (!action) return "TOOL_RESULT wm_action: missing action"
+    if (!wmRef) return `TOOL_RESULT wm_action ${action}: window manager unavailable`
+    const rows = wmRef.listWindows?.() || []
+    const findByTitle = (value) => {
+      const needle = String(value || "").trim().toLowerCase()
+      if (!needle) return null
+      const exact = rows.find(w => String(w.title || "").trim().toLowerCase() === needle)
+      if (exact) return exact
+      return rows.find(w => String(w.title || "").toLowerCase().includes(needle)) || null
+    }
+    if (action === "list_windows") {
+      if (!rows.length) return "TOOL_RESULT wm_action list_windows: no windows"
+      const list = rows.map((w, i) => `${i + 1}. ${w.title} | id=${w.id} | minimized=${w.minimized ? "yes" : "no"} | kind=${w.kind || "window"}`)
+      return `TOOL_RESULT wm_action list_windows:\n${list.join("\n")}`
+    }
+    if (action === "tile") {
+      wmRef.tileVisibleWindows?.()
+      await addEvent("wm_action", "tile")
+      return "TOOL_RESULT wm_action tile: ok"
+    }
+    if (action === "arrange") {
+      wmRef.arrangeVisibleWindows?.()
+      await addEvent("wm_action", "arrange")
+      return "TOOL_RESULT wm_action arrange: ok"
+    }
+    if (action === "focus_window") {
+      const target = findByTitle(args.title || args.window || args.name)
+      if (!target) return "TOOL_RESULT wm_action focus_window: window not found"
+      wmRef.restore?.(target.id)
+      wmRef.focus?.(target.id)
+      await addEvent("wm_action", `focus ${target.title}`)
+      return `TOOL_RESULT wm_action focus_window: ok (${target.title})`
+    }
+    if (action === "minimize_window") {
+      const target = findByTitle(args.title || args.window || args.name)
+      if (!target) return "TOOL_RESULT wm_action minimize_window: window not found"
+      wmRef.minimize?.(target.id)
+      await addEvent("wm_action", `minimize ${target.title}`)
+      return `TOOL_RESULT wm_action minimize_window: ok (${target.title})`
+    }
+    if (action === "restore_window") {
+      const target = findByTitle(args.title || args.window || args.name)
+      if (!target) return "TOOL_RESULT wm_action restore_window: window not found"
+      wmRef.restore?.(target.id)
+      wmRef.focus?.(target.id)
+      await addEvent("wm_action", `restore ${target.title}`)
+      return `TOOL_RESULT wm_action restore_window: ok (${target.title})`
+    }
+    if (action === "open_app") {
+      const appId = String(args.app || args.id || args.name || "").trim()
+      if (!appId) return "TOOL_RESULT wm_action open_app: missing app id"
+      const openedId = wmRef.openAppById?.(appId)
+      if (!openedId) return `TOOL_RESULT wm_action open_app: app not found (${appId})`
+      wmRef.restore?.(openedId)
+      wmRef.focus?.(openedId)
+      await addEvent("wm_action", `open_app ${appId}`)
+      return `TOOL_RESULT wm_action open_app: ok (${appId})`
+    }
+    if (action === "open_url") {
+      const rawUrl = String(args.url || args.link || "").trim()
+      if (!rawUrl) return "TOOL_RESULT wm_action open_url: missing url"
+      const opened = wmRef.openUrlInBrowser?.(rawUrl, { newWindow: false })
+      if (!opened?.ok) return `TOOL_RESULT wm_action open_url: failed (${opened?.error || "unknown"})`
+      await addEvent("wm_action", `open_url ${rawUrl}`)
+      return `TOOL_RESULT wm_action open_url: ok (${opened.url})`
+    }
+    return `TOOL_RESULT wm_action ${action}: unsupported`
   }
   return `TOOL_RESULT ${call.name}: unsupported`
 }
@@ -4499,9 +4585,6 @@ async function loadPersistentState(){
     appState.telegramPollMs = Math.max(5000, Number(cfg.telegramPollMs) || appState.telegramPollMs)
   }
   if (savedState) {
-    appState.agent.soulMd = savedState.soulMd || appState.agent.soulMd
-    appState.agent.toolsMd = savedState.toolsMd || appState.agent.toolsMd
-    appState.agent.heartbeatMd = savedState.heartbeatMd || appState.agent.heartbeatMd
     appState.agent.rollingMessages = Array.isArray(savedState.rollingMessages) ? savedState.rollingMessages.slice(-appState.config.maxContextMessages) : []
     appState.agent.status = savedState.status || "idle"
     appState.agent.lastTickAt = savedState.lastTickAt || null
@@ -4513,13 +4596,10 @@ async function loadPersistentState(){
       appState.agent.activeLocalThreadId = savedState.activeLocalThreadId
     }
   }
-  const soulText = String(appState.agent.soulMd || "")
-  const isLegacySoul = LEGACY_SOUL_MARKERS.every(marker => soulText.includes(marker))
-  const isPrevHedgehogDefault = PREV_HEDGEHOG_DEFAULT_MARKERS.every(marker => soulText.includes(marker))
-    && !soulText.includes("Answer in one or two sentences unless it is absolutely impossible to do so.")
-  if (!soulText.trim() || isLegacySoul || isPrevHedgehogDefault) {
-    appState.agent.soulMd = DEFAULT_SOUL
-  }
+  // Phase 2b policy: shipped SOUL/TOOLS/heartbeat defaults are authoritative on reload.
+  appState.agent.soulMd = DEFAULT_SOUL
+  appState.agent.toolsMd = DEFAULT_TOOLS
+  appState.agent.heartbeatMd = DEFAULT_HEARTBEAT
   ensureLocalThreadsInitialized()
   appState.events = events
 }
