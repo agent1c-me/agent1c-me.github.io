@@ -2373,20 +2373,20 @@ function ensureClippyAssistant(){
     const ai = (py * alphaCanvas.width + px) * 4 + 3
     return (alphaData[ai] || 0) > 18
   }
-  function forwardPointerToUnderlying(e){
+  function resolveUnderlyingTarget(clientX, clientY){
     if (!body || !root) return
     const prevRootPe = root.style.pointerEvents
     root.style.pointerEvents = "none"
-    const target = document.elementFromPoint(e.clientX, e.clientY)
+    const target = document.elementFromPoint(clientX, clientY)
     root.style.pointerEvents = prevRootPe
+    return target
+  }
+  function forwardClickToUnderlying(e){
+    const target = resolveUnderlyingTarget(e.clientX, e.clientY)
     if (!target || target === body || target === root) return
-    const pointerInit = {
+    const mouseInit = {
       bubbles: true,
       cancelable: true,
-      composed: true,
-      pointerId: e.pointerId,
-      pointerType: e.pointerType,
-      isPrimary: e.isPrimary,
       clientX: e.clientX,
       clientY: e.clientY,
       button: e.button,
@@ -2396,21 +2396,10 @@ function ensureClippyAssistant(){
       altKey: e.altKey,
       metaKey: e.metaKey,
     }
-    try { target.dispatchEvent(new PointerEvent("pointerdown", pointerInit)) } catch {}
-    try {
-      target.dispatchEvent(new MouseEvent("mousedown", {
-        bubbles: true,
-        cancelable: true,
-        clientX: e.clientX,
-        clientY: e.clientY,
-        button: e.button,
-        buttons: e.buttons,
-        ctrlKey: e.ctrlKey,
-        shiftKey: e.shiftKey,
-        altKey: e.altKey,
-        metaKey: e.metaKey,
-      }))
-    } catch {}
+    try { target.dispatchEvent(new MouseEvent("mousedown", mouseInit)) } catch {}
+    try { target.dispatchEvent(new MouseEvent("mouseup", mouseInit)) } catch {}
+    try { target.dispatchEvent(new MouseEvent("click", mouseInit)) } catch {}
+    try { target.focus?.() } catch {}
   }
   function clampPos(){
     const dw = desktop.clientWidth || 0
@@ -2426,7 +2415,7 @@ function ensureClippyAssistant(){
   body?.addEventListener("pointerdown", (e) => {
     if (!isOpaqueBodyPixelAt(e.clientX, e.clientY)) {
       e.preventDefault()
-      forwardPointerToUnderlying(e)
+      forwardClickToUnderlying(e)
       return
     }
     e.preventDefault()
