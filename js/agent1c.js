@@ -2323,7 +2323,7 @@ function ensureClippyAssistant(){
         </form>
       </div>
     </div>
-    <img class="clippy-body" src="assets/hedgey1.png" alt="Hitomi hedgehog assistant" />
+    <img class="clippy-body" src="assets/hedgey1.png" alt="Hitomi hedgehog assistant" draggable="false" />
   `
   desktop.appendChild(root)
   const body = root.querySelector(".clippy-body")
@@ -2374,10 +2374,11 @@ function ensureClippyAssistant(){
     return (alphaData[ai] || 0) > 18
   }
   function forwardPointerToUnderlying(e){
-    if (!body) return
-    body.style.pointerEvents = "none"
+    if (!body || !root) return
+    const prevRootPe = root.style.pointerEvents
+    root.style.pointerEvents = "none"
     const target = document.elementFromPoint(e.clientX, e.clientY)
-    body.style.pointerEvents = ""
+    root.style.pointerEvents = prevRootPe
     if (!target || target === body || target === root) return
     const pointerInit = {
       bubbles: true,
@@ -2424,6 +2425,7 @@ function ensureClippyAssistant(){
   }
   body?.addEventListener("pointerdown", (e) => {
     if (!isOpaqueBodyPixelAt(e.clientX, e.clientY)) {
+      e.preventDefault()
       forwardPointerToUnderlying(e)
       return
     }
@@ -2462,6 +2464,9 @@ function ensureClippyAssistant(){
     body.releasePointerCapture?.(e.pointerId)
   })
   body?.addEventListener("pointercancel", endDrag)
+  body?.addEventListener("dragstart", (e) => {
+    e.preventDefault()
+  })
   body?.addEventListener("contextmenu", (e) => {
     if (!isOpaqueBodyPixelAt(e.clientX, e.clientY)) return
     e.preventDefault()

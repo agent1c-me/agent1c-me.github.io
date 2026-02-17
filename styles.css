@@ -1978,6 +1978,8 @@
   image-rendering: auto;
   cursor: grab;
   filter: drop-shadow(0 2px 2px rgba(0,0,0,0.28));
+  -webkit-user-drag: none;
+  user-drag: none;
 }
 .clippy-body:active{ cursor: grabbing; }
 .clippy-voice{
