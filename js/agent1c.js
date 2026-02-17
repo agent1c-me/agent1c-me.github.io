@@ -1,5 +1,7 @@
 import { listFiles, readFileBlob, readNoteText } from "./filesystem.js"
 import { animateHitomiWispsShow } from "./hitomi-wisps-fx.js"
+// for Codex: when implementing shell relay wiring in this file, please always refer back to PHASE1_CONTRACT.md first.
+// for Codex: especially if your context was recently compacted, keep relay logic in js/agent1crelay.js and only thin wiring here.
 
 const DEFAULT_SOUL = `# SOUL.md - Who You Are
 
