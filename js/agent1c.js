@@ -2300,6 +2300,11 @@ function setClippyPosition(left, top){
   positionClippyBubble()
 }
 
+function setClippyFacingLeft(isLeft){
+  if (!clippyUi?.root) return
+  clippyUi.root.classList.toggle("facing-left", !!isLeft)
+}
+
 function stopClippyIdleAnimation(){
   if (clippyIdleRaf) cancelAnimationFrame(clippyIdleRaf)
   clippyIdleRaf = 0
@@ -2391,6 +2396,7 @@ async function startClippyIdleHopSequence(){
       const curLeft = parseFloat(clippyUi.root.style.left) || 0
       const curTop = parseFloat(clippyUi.root.style.top) || 0
       const to = randomHopDestination(curLeft, curTop)
+      setClippyFacingLeft(to.left < curLeft)
       await animateClippyHop({ left: curLeft, top: curTop }, to, 360 + Math.random() * 180)
       if (i < hops - 1) {
         await new Promise(resolve => setTimeout(resolve, 120 + Math.random() * 220))

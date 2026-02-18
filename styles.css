@@ -1995,6 +1995,9 @@
   -webkit-user-drag: none;
   user-drag: none;
 }
+.clippy-assistant.facing-left .clippy-body{
+  transform: scaleX(-1);
+}
 .clippy-body:active{ cursor: grabbing; }
 .clippy-voice{
   position: absolute;
