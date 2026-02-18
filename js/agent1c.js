@@ -2935,6 +2935,19 @@ function refreshUi(){
   loadInputsFromState()
   refreshProviderPreviewUi()
   refreshBadges()
+  publishBrowserRelayState()
+}
+
+function publishBrowserRelayState(){
+  try {
+    window.__agent1cRelayState = {
+      enabled: Boolean(appState.config.relayEnabled),
+      baseUrl: String(appState.config.relayBaseUrl || ""),
+      timeoutMs: Number(appState.config.relayTimeoutMs || 30000),
+      updatedAt: Date.now(),
+    }
+    window.dispatchEvent(new CustomEvent("agent1c:relay-state-updated", { detail: window.__agent1cRelayState }))
+  } catch {}
 }
 
 function closeWindow(winObj){
@@ -4373,6 +4386,9 @@ function wireMainDom(){
     scheduleConfigAutosave()
   })
   els.openShellRelayBtn?.addEventListener("click", () => {
+    openShellRelayWindow()
+  })
+  window.addEventListener("agent1c:open-shell-relay", () => {
     openShellRelayWindow()
   })
 

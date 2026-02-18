@@ -28,6 +28,9 @@
       p {
         margin: 12px 0 0;
       }
+      a {
+        color: inherit;
+      }
       html.dark body { background: #1b1e23; color: #e6e8eb; }
       html.greenscreen body { background: #000; color: #00ff66; }
       html.cyberpunk body { background: #0b0b0b; color: #ff3b30; }
@@ -37,8 +40,7 @@
   <body>
     <div class="card">
       <img src="../../assets/hedgey1.png" alt="Hedgey Hog" />
-      <p>Hi, I'm a Hedgey Browser. I use iframe-style browsing first, and if your Shell Relay is connected I can fallback through relay mode to open most pages that would otherwise fail.</p>
-      <p>You can still save pages as little apps, and I can open YouTube, Twitch, Vimeo, Spotify, and other media sites when you give me direct links.</p>
+      <div id="browserCopy"></div>
     </div>
     <script>
       (function(){
@@ -53,6 +55,90 @@
           document.documentElement.className = next;
         } catch {}
       })();
+
+      const copyRoot = document.getElementById("browserCopy");
+
+      function escapeHtml(text){
+        return String(text || "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function openShellRelay(){
+        try {
+          parent.dispatchEvent(new Event("agent1c:open-shell-relay"));
+        } catch {}
+      }
+
+      function wireShellRelayLinks(){
+        const links = copyRoot?.querySelectorAll("[data-open-shell-relay]");
+        if (!links?.length) return;
+        for (const link of links){
+          link.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            openShellRelay();
+          });
+        }
+      }
+
+      async function probeRelayConnected(){
+        try {
+          const relay = parent?.__agent1cRelayState;
+          if (!relay || !relay.enabled) return false;
+          const baseUrl = String(relay.baseUrl || "http://127.0.0.1:8765").replace(/\/+$/, "");
+          const timeoutMs = Math.max(800, Math.min(5000, Number(relay.timeoutMs || 3000)));
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), timeoutMs);
+          let res;
+          try {
+            res = await fetch(`${baseUrl}/v1/health`, {
+              method: "GET",
+              headers: { Origin: location.origin },
+              signal: controller.signal,
+              cache: "no-store",
+            });
+          } finally {
+            clearTimeout(timer);
+          }
+          if (!res.ok) return false;
+          const body = await res.json().catch(() => null);
+          return Boolean(body && body.ok);
+        } catch {
+          return false;
+        }
+      }
+
+      function renderCopy(isConnected){
+        if (!copyRoot) return;
+        if (isConnected){
+          copyRoot.innerHTML = [
+            "<p>Hi, I'm a Hedgey Browser. Your <a href=\"#\" data-open-shell-relay>Shell Relay</a> is connected, so I can fallback through relay mode to open most pages that would otherwise fail in iframes.</p>",
+            "<p>You can still save pages as little apps, and I can open YouTube, Twitch, Vimeo, Spotify, and other media sites when you give me direct links.</p>",
+          ].join("");
+          wireShellRelayLinks();
+          return;
+        }
+        copyRoot.innerHTML = [
+          "<p>Hi, I'm a Hedgey Browser. Your <a href=\"#\" data-open-shell-relay>Shell Relay</a> is not connected, so I might not load all websites since I am actually an iframe. :( But if you find a site that can load (github.io sites, wikipedia, direct link to Google Slides, etc) you can save it as a little application! yay!</p>",
+          "<p>Also, I can open YouTube, Twitch, Vimeo, Spotify, and some other media sites, as long as you give me the direct link to the video or song. :)</p>",
+          "<p>Want full browsing support? Install and connect <a href=\"#\" data-open-shell-relay>Shell Relay</a> so I can work with nearly every site.</p>",
+        ].join("");
+        wireShellRelayLinks();
+      }
+
+      let renderToken = 0;
+      async function refreshRelayAwareCopy(){
+        const token = ++renderToken;
+        const connected = await probeRelayConnected();
+        if (token !== renderToken) return;
+        renderCopy(connected);
+      }
+
+      refreshRelayAwareCopy();
+      setInterval(refreshRelayAwareCopy, 8000);
     </script>
   </body>
 </html>
