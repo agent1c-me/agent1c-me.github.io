@@ -176,17 +176,17 @@ export function shellRelayWindowHtml(){
   const os = relaySetupByOs("linux")
   return `
     <div class="agent-stack agent-setup-stack">
-      <div class="agent-setup-intro">
-        <div class="agent-setup-title">Shell Relay Setup</div>
-        <div class="agent-note">This enables localhost shell tools for Hitomi. Setup is shell-only and local to your device.</div>
-        <div class="agent-note agent-note-warn">Warning: run relay as non-root/non-sudo user.</div>
-      </div>
       <div class="agent-main-tabs">
         <button id="relayMainTabSetup" class="agent-main-tab active" type="button" data-relay-main-tab="setup">Setup</button>
         <button id="relayMainTabConnect" class="agent-main-tab" type="button" data-relay-main-tab="connect">Connect</button>
         <button id="relayMainTabTerminal" class="agent-main-tab" type="button" data-relay-main-tab="terminal">Terminal</button>
       </div>
       <div id="relayPageSetup" class="agent-relay-page">
+        <div class="agent-setup-intro">
+          <div class="agent-setup-title">Shell Relay Setup</div>
+          <div class="agent-note">Set up local shell access for Hitomi on this device.</div>
+          <div class="agent-note agent-note-warn">Run relay as non-root/non-sudo user.</div>
+        </div>
         <div class="agent-device-tabs">
           <button class="btn agent-device-tab active" type="button" data-relay-os="linux">Linux</button>
           <button class="btn agent-device-tab" type="button" data-relay-os="mac">macOS</button>
@@ -372,11 +372,13 @@ export function wireShellRelayDom({ root, els, getRelayConfig, onSaveRelayConfig
   if (els.relayWindowBaseUrlInput) els.relayWindowBaseUrlInput.value = cfg.baseUrl
   if (els.relayWindowTokenInput) els.relayWindowTokenInput.value = cfg.token
   if (els.relayWindowStatus) els.relayWindowStatus.textContent = cfg.enabled ? "Relay enabled." : "Relay disabled."
+  const stackEl = root.querySelector(".agent-setup-stack")
 
   const setMainTab = (tab) => {
     const isSetup = tab === "setup"
     const isConnect = tab === "connect"
     const isTerminal = tab === "terminal"
+    stackEl?.classList.toggle("relay-terminal-mode", isTerminal)
     els.relayMainTabSetup?.classList.toggle("active", isSetup)
     els.relayMainTabConnect?.classList.toggle("active", isConnect)
     els.relayMainTabTerminal?.classList.toggle("active", isTerminal)
