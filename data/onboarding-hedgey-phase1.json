@@ -1,0 +1,927 @@
+{
+  "meta": {
+    "id": "agent1c.setup.hedgey.phase1",
+    "version": "1.0.0",
+    "generatedAt": "2026-02-18",
+    "source": "PHASE_ONBOARDING_HEDGEY_PLAN.md",
+    "scope": [
+      "create_vault",
+      "ai_apis"
+    ],
+    "runtimeMode": "non_llm_onboarding_only",
+    "uiReuse": {
+      "mustReuseExistingHitomiUi": true,
+      "reuseComponents": [
+        "floating_hedgehog_avatar",
+        "full_dialog_bubble",
+        "compact_dialog_bubble",
+        "existing_bubble_positioning_and_snap_logic"
+      ],
+      "newUiAllowed": [
+        "state_aware_action_chips"
+      ]
+    }
+  },
+  "providerDocs": {
+    "openai": {
+      "displayName": "OpenAI",
+      "keyUrl": "https://platform.openai.com/api-keys",
+      "note": "Create a new secret key, copy once, paste in OpenAI row."
+    },
+    "anthropic": {
+      "displayName": "Anthropic",
+      "keyUrl": "https://platform.claude.com/settings/keys",
+      "note": "Create key in Claude console, paste in Anthropic row."
+    },
+    "xai": {
+      "displayName": "xAI (Grok)",
+      "keyUrl": "https://console.x.ai",
+      "note": "Create API key in xAI console, paste in xAI row."
+    },
+    "zai": {
+      "displayName": "z.ai",
+      "keyUrl": "https://platform.z.ai",
+      "note": "Create API key in z.ai platform, paste in z.ai row."
+    },
+    "ollama": {
+      "displayName": "Ollama (Local)",
+      "keyUrl": "",
+      "note": "No API key needed. Configure local endpoint and model."
+    }
+  },
+  "stateMachine": {
+    "initialState": "vault_intro",
+    "states": {
+      "vault_intro": {
+        "screen": "create_vault",
+        "description": "First contact on Create Vault screen.",
+        "autoOnEnter": [
+          "welcome_vault",
+          "explain_vault_choices"
+        ]
+      },
+      "vault_create": {
+        "screen": "create_vault",
+        "description": "User is creating passphrase.",
+        "autoOnEnter": [
+          "how_to_create_passphrase"
+        ]
+      },
+      "vault_skip_confirm": {
+        "screen": "create_vault",
+        "description": "Second confirmation for unencrypted mode.",
+        "autoOnEnter": [
+          "skip_risk_warning"
+        ]
+      },
+      "apis_intro": {
+        "screen": "ai_apis",
+        "description": "User reached AI APIs setup.",
+        "autoOnEnter": [
+          "welcome_apis",
+          "recommend_first_provider"
+        ]
+      },
+      "apis_openai": {
+        "screen": "ai_apis",
+        "description": "OpenAI provider guidance.",
+        "autoOnEnter": [
+          "provider_openai_instructions"
+        ]
+      },
+      "apis_anthropic": {
+        "screen": "ai_apis",
+        "description": "Anthropic provider guidance.",
+        "autoOnEnter": [
+          "provider_anthropic_instructions"
+        ]
+      },
+      "apis_xai": {
+        "screen": "ai_apis",
+        "description": "xAI provider guidance.",
+        "autoOnEnter": [
+          "provider_xai_instructions"
+        ]
+      },
+      "apis_zai": {
+        "screen": "ai_apis",
+        "description": "z.ai provider guidance.",
+        "autoOnEnter": [
+          "provider_zai_instructions"
+        ]
+      },
+      "apis_ollama": {
+        "screen": "ai_apis",
+        "description": "Ollama provider guidance.",
+        "autoOnEnter": [
+          "provider_ollama_instructions"
+        ]
+      },
+      "apis_done_or_next": {
+        "screen": "ai_apis",
+        "description": "Provider ready, ask what next.",
+        "autoOnEnter": [
+          "provider_success_next"
+        ]
+      }
+    },
+    "transitions": [
+      {
+        "from": "vault_intro",
+        "onIntent": "vault_create",
+        "to": "vault_create"
+      },
+      {
+        "from": "vault_intro",
+        "onIntent": "vault_skip",
+        "to": "vault_skip_confirm"
+      },
+      {
+        "from": "vault_skip_confirm",
+        "onIntent": "vault_skip_confirm_yes",
+        "to": "apis_intro"
+      },
+      {
+        "from": "vault_create",
+        "onTrigger": "vault_initialized",
+        "to": "apis_intro"
+      },
+      {
+        "from": "apis_intro",
+        "onIntent": "provider_openai",
+        "to": "apis_openai"
+      },
+      {
+        "from": "apis_intro",
+        "onIntent": "provider_anthropic",
+        "to": "apis_anthropic"
+      },
+      {
+        "from": "apis_intro",
+        "onIntent": "provider_xai",
+        "to": "apis_xai"
+      },
+      {
+        "from": "apis_intro",
+        "onIntent": "provider_zai",
+        "to": "apis_zai"
+      },
+      {
+        "from": "apis_intro",
+        "onIntent": "provider_ollama",
+        "to": "apis_ollama"
+      },
+      {
+        "from": "apis_openai",
+        "onTrigger": "provider_ready_openai",
+        "to": "apis_done_or_next"
+      },
+      {
+        "from": "apis_anthropic",
+        "onTrigger": "provider_ready_anthropic",
+        "to": "apis_done_or_next"
+      },
+      {
+        "from": "apis_xai",
+        "onTrigger": "provider_ready_xai",
+        "to": "apis_done_or_next"
+      },
+      {
+        "from": "apis_zai",
+        "onTrigger": "provider_ready_zai",
+        "to": "apis_done_or_next"
+      },
+      {
+        "from": "apis_ollama",
+        "onTrigger": "provider_ready_ollama",
+        "to": "apis_done_or_next"
+      },
+      {
+        "from": "apis_done_or_next",
+        "onIntent": "progress_continue_to_chat",
+        "to": "apis_done_or_next"
+      },
+      {
+        "from": "apis_done_or_next",
+        "onIntent": "provider_any",
+        "to": "apis_intro"
+      }
+    ]
+  },
+  "nlu": {
+    "normalization": {
+      "lowercase": true,
+      "stripPunctuation": true,
+      "trim": true
+    },
+    "intents": [
+      {
+        "id": "vault_create",
+        "priority": 100,
+        "keywords": [
+          "initialize vault",
+          "create vault",
+          "set passphrase",
+          "encrypt",
+          "secure"
+        ]
+      },
+      {
+        "id": "vault_skip",
+        "priority": 100,
+        "keywords": [
+          "skip",
+          "skip for now",
+          "later",
+          "without passphrase",
+          "not now"
+        ]
+      },
+      {
+        "id": "vault_skip_confirm_yes",
+        "priority": 120,
+        "keywords": [
+          "confirm skip",
+          "yes skip",
+          "i accept risk",
+          "continue unencrypted"
+        ]
+      },
+      {
+        "id": "vault_risk",
+        "priority": 90,
+        "keywords": [
+          "risk",
+          "safe",
+          "danger",
+          "why passphrase",
+          "why encrypt"
+        ]
+      },
+      {
+        "id": "provider_openai",
+        "priority": 95,
+        "keywords": [
+          "openai",
+          "gpt",
+          "chatgpt api"
+        ]
+      },
+      {
+        "id": "provider_anthropic",
+        "priority": 95,
+        "keywords": [
+          "anthropic",
+          "claude"
+        ]
+      },
+      {
+        "id": "provider_xai",
+        "priority": 95,
+        "keywords": [
+          "xai",
+          "x.ai",
+          "grok"
+        ]
+      },
+      {
+        "id": "provider_zai",
+        "priority": 95,
+        "keywords": [
+          "z.ai",
+          "zai",
+          "glm",
+          "zhipu"
+        ]
+      },
+      {
+        "id": "provider_ollama",
+        "priority": 95,
+        "keywords": [
+          "ollama",
+          "local model",
+          "localhost"
+        ]
+      },
+      {
+        "id": "provider_any",
+        "priority": 70,
+        "keywords": [
+          "another provider",
+          "add provider",
+          "set up another api"
+        ]
+      },
+      {
+        "id": "model_help",
+        "priority": 80,
+        "keywords": [
+          "which model",
+          "recommended model",
+          "cheap model",
+          "fast model"
+        ]
+      },
+      {
+        "id": "validation_help",
+        "priority": 85,
+        "keywords": [
+          "test failed",
+          "invalid key",
+          "error",
+          "401",
+          "403",
+          "429"
+        ]
+      },
+      {
+        "id": "progress_next",
+        "priority": 60,
+        "keywords": [
+          "what next",
+          "next",
+          "continue",
+          "done"
+        ]
+      },
+      {
+        "id": "progress_continue_to_chat",
+        "priority": 75,
+        "keywords": [
+          "continue to chat",
+          "start chat",
+          "i am ready"
+        ]
+      },
+      {
+        "id": "locality",
+        "priority": 70,
+        "keywords": [
+          "local",
+          "server",
+          "privacy",
+          "where key stored",
+          "where are my keys"
+        ]
+      }
+    ],
+    "offTopicPolicy": {
+      "mode": "strict_setup_only",
+      "fallbackPool": [
+        "I am currently a hedgehog with very little brain. You need to give me an LLM API to be more fun and useful.",
+        "Tiny hedgehog brain mode is active. I can only help setup right now. Add an AI API and I become much smarter.",
+        "I can only answer setup questions for now. Connect an LLM API and then we can chat about anything."
+      ]
+    }
+  },
+  "autonomousTriggers": [
+    {
+      "id": "vault_skip_clicked",
+      "messageKey": "skip_risk_warning",
+      "priority": "high",
+      "dedupeKey": "vault_skip_warning"
+    },
+    {
+      "id": "provider_section_opened_openai",
+      "messageKey": "provider_openai_instructions",
+      "priority": "normal",
+      "dedupeKey": "open_section_openai"
+    },
+    {
+      "id": "provider_section_opened_anthropic",
+      "messageKey": "provider_anthropic_instructions",
+      "priority": "normal",
+      "dedupeKey": "open_section_anthropic"
+    },
+    {
+      "id": "provider_section_opened_xai",
+      "messageKey": "provider_xai_instructions",
+      "priority": "normal",
+      "dedupeKey": "open_section_xai"
+    },
+    {
+      "id": "provider_section_opened_zai",
+      "messageKey": "provider_zai_instructions",
+      "priority": "normal",
+      "dedupeKey": "open_section_zai"
+    },
+    {
+      "id": "provider_section_opened_ollama",
+      "messageKey": "provider_ollama_instructions",
+      "priority": "normal",
+      "dedupeKey": "open_section_ollama"
+    },
+    {
+      "id": "provider_key_input_started",
+      "messageKey": "key_detected_save_test",
+      "priority": "normal",
+      "dedupeKey": "key_input_started:{provider}"
+    },
+    {
+      "id": "provider_key_saved",
+      "messageKey": "saved_then_test",
+      "priority": "normal",
+      "dedupeKey": "provider_saved:{provider}"
+    },
+    {
+      "id": "provider_test_success",
+      "messageKey": "provider_ready",
+      "priority": "normal",
+      "dedupeKey": "provider_ready:{provider}:{model}"
+    },
+    {
+      "id": "provider_test_error",
+      "messageKey": "provider_error_help",
+      "priority": "normal",
+      "dedupeKey": "provider_error:{provider}:{code}"
+    },
+    {
+      "id": "provider_model_selected",
+      "messageKey": "model_set_ready",
+      "priority": "normal",
+      "dedupeKey": "model_set:{provider}:{model}"
+    }
+  ],
+  "messageTemplates": {
+    "welcome_vault": [
+      "Hi hi, I am Hitomi the tiny setup hedgehog. I will guide you through this in baby steps.",
+      "Hello friend. Tiny hedgehog helper here. Let us set up your Agent1c safely and quickly."
+    ],
+    "explain_vault_choices": [
+      "First step is your local vault. You can initialize passphrase now, or skip for now with extra risk.",
+      "Choose one: create passphrase now for local encryption, or skip for now if you just want a fast start."
+    ],
+    "how_to_create_passphrase": [
+      "Type your passphrase, confirm it, then press Initialize Vault.",
+      "Pick a passphrase you can remember, type it twice, then click Initialize Vault."
+    ],
+    "skip_risk_warning": [
+      "You chose to skip vault creation. This means your API keys are not encrypted for now. Please be careful.",
+      "Skip mode is on. Your API keys will be stored locally without vault encryption until you enable the vault."
+    ],
+    "welcome_apis": [
+      "Great. Now we set up AI APIs so I can grow a bigger brain.",
+      "Yay, next is AI APIs. One working provider is enough to start chatting."
+    ],
+    "recommend_first_provider": [
+      "Fastest path: OpenAI first. Then add Anthropic, xAI, z.ai, or Ollama if you want.",
+      "Recommended order for easiest onboarding: OpenAI first, then optional extras."
+    ],
+    "provider_openai_instructions": [
+      "You clicked OpenAI. Get your key from <a href=\"https://platform.openai.com/api-keys\" data-open-url=\"https://platform.openai.com/api-keys\">platform.openai.com/api-keys</a>, then paste it here and save/test.",
+      "OpenAI selected. Create a key at <a href=\"https://platform.openai.com/api-keys\" data-open-url=\"https://platform.openai.com/api-keys\">platform.openai.com/api-keys</a>, paste it, then validate and pick model."
+    ],
+    "provider_anthropic_instructions": [
+      "You clicked Anthropic. Create key at <a href=\"https://platform.claude.com/settings/keys\" data-open-url=\"https://platform.claude.com/settings/keys\">platform.claude.com/settings/keys</a>, paste it here, then save/test.",
+      "Anthropic selected. Go to <a href=\"https://platform.claude.com/settings/keys\" data-open-url=\"https://platform.claude.com/settings/keys\">platform.claude.com/settings/keys</a> for API key, then paste and validate."
+    ],
+    "provider_xai_instructions": [
+      "You clicked xAI. Generate key in <a href=\"https://console.x.ai\" data-open-url=\"https://console.x.ai\">console.x.ai</a>, paste it here, then save/test.",
+      "xAI selected. Get your Grok API key from <a href=\"https://console.x.ai\" data-open-url=\"https://console.x.ai\">console.x.ai</a>, then paste and validate."
+    ],
+    "provider_zai_instructions": [
+      "You clicked z.ai. Create key in <a href=\"https://platform.z.ai\" data-open-url=\"https://platform.z.ai\">platform.z.ai</a>, paste it here, then save/test.",
+      "z.ai selected. Grab API key from <a href=\"https://platform.z.ai\" data-open-url=\"https://platform.z.ai\">platform.z.ai</a>, then paste and validate."
+    ],
+    "provider_ollama_instructions": [
+      "You clicked Ollama. No API key needed. Open Ollama Setup, start local server, then set endpoint and model here.",
+      "Ollama selected. Use local endpoint and model. Click Ollama Setup for guided steps."
+    ],
+    "key_detected_save_test": [
+      "I see you put a key in {providerLabel}. Nice. Next, save it and run test.",
+      "Key detected for {providerLabel}. Great. Please save and test connection next."
+    ],
+    "saved_then_test": [
+      "Saved. Next step is test, then pick your model.",
+      "Key is saved. Please test connection and choose a model after that."
+    ],
+    "provider_ready": [
+      "Great. {providerLabel} is ready.",
+      "Yay, {providerLabel} validated successfully."
+    ],
+    "provider_error_help": [
+      "I see an error ({code}) for {providerLabel}. Check key format, account access, and model availability, then test again.",
+      "{providerLabel} returned error {code}. Please confirm the key is active for this provider and retry test."
+    ],
+    "model_set_ready": [
+      "Model set to {model}. You are ready to chat.",
+      "Nice, model is now {model}. You can continue to chat or add another provider."
+    ],
+    "provider_success_next": [
+      "Want to add another provider, or continue to chat now?",
+      "This provider is ready. Choose: add another API, or start chatting."
+    ],
+    "vault_risk_answer": [
+      "Passphrase means your local keys are encrypted at rest in-browser. Skip mode stores keys locally without vault encryption.",
+      "With vault passphrase, API keys are encrypted locally. Without it, keys remain local but unencrypted."
+    ],
+    "locality_answer": [
+      "Agent1c is local-first. Your keys stay in your browser and calls go directly to providers.",
+      "No app server stores your keys. They stay local in-browser and are used for direct provider calls."
+    ],
+    "model_help_answer": [
+      "For quick setup, use a fast default model first, then upgrade later.",
+      "Start with a stable model for your provider, then switch once everything is working."
+    ],
+    "validation_help_answer": [
+      "If test fails, recheck key, provider selection, model availability, and quota limits.",
+      "Troubleshooting flow: confirm provider, confirm key, confirm model, retry test."
+    ],
+    "progress_next_answer": [
+      "Next step is whichever is incomplete on screen. I can guide that right now.",
+      "Tell me what you see on this screen and I will guide the immediate next action."
+    ]
+  },
+  "pills": {
+    "vault_intro": {
+      "primary": [
+        {
+          "id": "pill_vault_init",
+          "label": "Initialize Vault",
+          "intent": "vault_create"
+        },
+        {
+          "id": "pill_vault_skip",
+          "label": "Skip for now",
+          "intent": "vault_skip"
+        },
+        {
+          "id": "pill_vault_why",
+          "label": "Why passphrase?",
+          "intent": "vault_risk"
+        }
+      ],
+      "secondary": [
+        {
+          "id": "pill_local_only",
+          "label": "Is this local-only?",
+          "intent": "locality"
+        },
+        {
+          "id": "pill_what_next",
+          "label": "What next?",
+          "intent": "progress_next"
+        }
+      ]
+    },
+    "vault_create": {
+      "primary": [
+        {
+          "id": "pill_vault_passphrase_tips",
+          "label": "Passphrase tips",
+          "emitMessageKey": "how_to_create_passphrase"
+        },
+        {
+          "id": "pill_vault_i_entered",
+          "label": "I entered both fields",
+          "emitMessage": "Great. Press Initialize Vault now."
+        },
+        {
+          "id": "pill_vault_error",
+          "label": "I got an error",
+          "emitMessage": "Please check both fields match and are not empty, then try Initialize Vault again."
+        }
+      ],
+      "secondary": [
+        {
+          "id": "pill_vault_skip_late",
+          "label": "Skip for now instead",
+          "intent": "vault_skip"
+        },
+        {
+          "id": "pill_what_next",
+          "label": "What next?",
+          "intent": "progress_next"
+        }
+      ]
+    },
+    "vault_skip_confirm": {
+      "primary": [
+        {
+          "id": "pill_skip_confirm_yes",
+          "label": "Yes, skip unencrypted",
+          "intent": "vault_skip_confirm_yes"
+        },
+        {
+          "id": "pill_skip_go_back",
+          "label": "Go back and encrypt",
+          "intent": "vault_create"
+        },
+        {
+          "id": "pill_skip_risk",
+          "label": "What are the risks?",
+          "intent": "vault_risk"
+        }
+      ],
+      "secondary": [
+        {
+          "id": "pill_what_next",
+          "label": "What next?",
+          "intent": "progress_next"
+        }
+      ]
+    },
+    "apis_intro": {
+      "primary": [
+        {
+          "id": "pill_openai",
+          "label": "Set up OpenAI",
+          "intent": "provider_openai"
+        },
+        {
+          "id": "pill_anthropic",
+          "label": "Set up Anthropic",
+          "intent": "provider_anthropic"
+        },
+        {
+          "id": "pill_xai",
+          "label": "Set up xAI",
+          "intent": "provider_xai"
+        }
+      ],
+      "secondary": [
+        {
+          "id": "pill_zai",
+          "label": "Set up z.ai",
+          "intent": "provider_zai"
+        },
+        {
+          "id": "pill_ollama",
+          "label": "Set up Ollama",
+          "intent": "provider_ollama"
+        }
+      ]
+    },
+    "apis_openai": {
+      "primary": [
+        {
+          "id": "pill_openai_url",
+          "label": "Get OpenAI key",
+          "emitMessageKey": "provider_openai_instructions"
+        },
+        {
+          "id": "pill_openai_pasted",
+          "label": "I pasted key",
+          "emitMessage": "Great. Click save/test now.",
+          "visibleWhen": "providerInputHasText:openai"
+        },
+        {
+          "id": "pill_openai_model",
+          "label": "Pick a model",
+          "intent": "model_help"
+        }
+      ],
+      "secondary": [
+        {
+          "id": "pill_openai_error",
+          "label": "Test failed",
+          "intent": "validation_help"
+        },
+        {
+          "id": "pill_back_provider_list",
+          "label": "Back to provider list",
+          "intent": "provider_any"
+        }
+      ]
+    },
+    "apis_anthropic": {
+      "primary": [
+        {
+          "id": "pill_anthropic_url",
+          "label": "Get Anthropic key",
+          "emitMessageKey": "provider_anthropic_instructions"
+        },
+        {
+          "id": "pill_anthropic_pasted",
+          "label": "I pasted key",
+          "emitMessage": "Nice. Save/test it now.",
+          "visibleWhen": "providerInputHasText:anthropic"
+        },
+        {
+          "id": "pill_anthropic_model",
+          "label": "Pick a model",
+          "intent": "model_help"
+        }
+      ],
+      "secondary": [
+        {
+          "id": "pill_anthropic_error",
+          "label": "Test failed",
+          "intent": "validation_help"
+        },
+        {
+          "id": "pill_back_provider_list",
+          "label": "Back to provider list",
+          "intent": "provider_any"
+        }
+      ]
+    },
+    "apis_xai": {
+      "primary": [
+        {
+          "id": "pill_xai_url",
+          "label": "Get xAI key",
+          "emitMessageKey": "provider_xai_instructions"
+        },
+        {
+          "id": "pill_xai_pasted",
+          "label": "I pasted key",
+          "emitMessage": "Great. Save/test it, then choose model.",
+          "visibleWhen": "providerInputHasText:xai"
+        },
+        {
+          "id": "pill_xai_model",
+          "label": "Pick a model",
+          "intent": "model_help"
+        }
+      ],
+      "secondary": [
+        {
+          "id": "pill_xai_error",
+          "label": "Test failed",
+          "intent": "validation_help"
+        },
+        {
+          "id": "pill_back_provider_list",
+          "label": "Back to provider list",
+          "intent": "provider_any"
+        }
+      ]
+    },
+    "apis_zai": {
+      "primary": [
+        {
+          "id": "pill_zai_url",
+          "label": "Get z.ai key",
+          "emitMessageKey": "provider_zai_instructions"
+        },
+        {
+          "id": "pill_zai_pasted",
+          "label": "I pasted key",
+          "emitMessage": "Nice. Save/test now, then set model.",
+          "visibleWhen": "providerInputHasText:zai"
+        },
+        {
+          "id": "pill_zai_model",
+          "label": "Pick a model",
+          "intent": "model_help"
+        }
+      ],
+      "secondary": [
+        {
+          "id": "pill_zai_error",
+          "label": "Test failed",
+          "intent": "validation_help"
+        },
+        {
+          "id": "pill_back_provider_list",
+          "label": "Back to provider list",
+          "intent": "provider_any"
+        }
+      ]
+    },
+    "apis_ollama": {
+      "primary": [
+        {
+          "id": "pill_ollama_setup",
+          "label": "Open Ollama setup",
+          "emitAction": "open_ollama_setup_window"
+        },
+        {
+          "id": "pill_ollama_endpoint",
+          "label": "Which endpoint?",
+          "emitMessage": "Usually http://localhost:11434. Then set your model and test."
+        },
+        {
+          "id": "pill_ollama_model",
+          "label": "How pick model?",
+          "intent": "model_help"
+        }
+      ],
+      "secondary": [
+        {
+          "id": "pill_ollama_error",
+          "label": "Test failed",
+          "intent": "validation_help"
+        },
+        {
+          "id": "pill_back_provider_list",
+          "label": "Back to provider list",
+          "intent": "provider_any"
+        }
+      ]
+    },
+    "apis_done_or_next": {
+      "primary": [
+        {
+          "id": "pill_continue_chat",
+          "label": "Continue to chat",
+          "intent": "progress_continue_to_chat"
+        },
+        {
+          "id": "pill_add_provider",
+          "label": "Add another provider",
+          "intent": "provider_any"
+        },
+        {
+          "id": "pill_which_model",
+          "label": "Which model should I use?",
+          "intent": "model_help"
+        }
+      ],
+      "secondary": [
+        {
+          "id": "pill_what_next",
+          "label": "What next?",
+          "intent": "progress_next"
+        }
+      ]
+    }
+  },
+  "responsePolicy": {
+    "maxSentences": 3,
+    "preferSentenceRange": [
+      1,
+      2
+    ],
+    "tone": [
+      "cute",
+      "friendly",
+      "clear",
+      "short"
+    ],
+    "alwaysSetupScoped": true,
+    "allowHtmlLinks": true
+  },
+  "cooldownAndDedupe": {
+    "autoHintCooldownMs": 2600,
+    "typingQuietWindowMs": 1400,
+    "dedupeWindowMs": 180000,
+    "priorityOverrides": [
+      "vault_skip_clicked"
+    ]
+  },
+  "uxSimulation": {
+    "status": "validated_manually_in_plan",
+    "scenarios": [
+      {
+        "id": "sim_vault_encrypt_openai",
+        "steps": [
+          "Enter vault_intro",
+          "user clicks Initialize Vault",
+          "vault_create guidance appears",
+          "user initializes vault",
+          "transition to apis_intro",
+          "user expands OpenAI",
+          "provider_openai instructions auto-appear with clickable URL",
+          "user types key",
+          "key_detected_save_test appears",
+          "user saves/tests",
+          "provider_ready + model_set_ready",
+          "apis_done_or_next"
+        ],
+        "result": "no dead-end, clear next actions"
+      },
+      {
+        "id": "sim_vault_skip_zai",
+        "steps": [
+          "Enter vault_intro",
+          "user clicks Skip for now",
+          "vault_skip_confirm warning appears",
+          "user confirms skip",
+          "transition to apis_intro",
+          "user expands z.ai",
+          "z.ai URL guidance appears",
+          "user enters key, save/test",
+          "error path -> provider_error_help",
+          "success path -> apis_done_or_next"
+        ],
+        "result": "risk messaging explicit and recoverable"
+      },
+      {
+        "id": "sim_off_topic",
+        "steps": [
+          "user asks non-setup question",
+          "intent matcher fails setup scope",
+          "off-topic tiny-brain fallback emitted"
+        ],
+        "result": "setup scope enforced"
+      },
+      {
+        "id": "sim_provider_switching",
+        "steps": [
+          "user expands Anthropic then xAI",
+          "dedupe prevents repeated same message spam",
+          "new provider instructions appear once",
+          "back_to_provider_list pill available"
+        ],
+        "result": "low-noise flow with clear navigation"
+      }
+    ],
+    "notes": [
+      "Pills include state-specific guard rails to avoid impossible actions.",
+      "Skip flow uses two-step confirm to reduce accidental unsafe setup.",
+      "What next? rescue option is available in every state cluster."
+    ]
+  }
+}
