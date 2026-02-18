@@ -2114,6 +2114,26 @@
   padding: 4px 6px;
   border-radius: 4px;
 }
+.clippy-chips{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-content: flex-start;
+}
+.clippy-chip{
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 1px 7px;
+  font: inherit;
+  font-size: 10px;
+  line-height: 1.25;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.clippy-chip.secondary{
+  opacity: 0.86;
+}
 .clippy-form{
   display: grid;
   grid-template-columns: 1fr auto;
@@ -2281,6 +2301,11 @@ body.dark .clippy-bubble::after{
 }
 body.dark .clippy-log{
   background: #141922;
+  border-color: #5d6678;
+  color: #eef2ff;
+}
+body.dark .clippy-chip{
+  background: #2b3445;
   border-color: #5d6678;
   color: #eef2ff;
 }

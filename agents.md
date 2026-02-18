@@ -828,3 +828,49 @@ For current 2b rollout, the shipped doc defaults are authoritative:
 Behavior requirement:
 - On refresh/reload, local edited versions of the three docs must be overwritten with deployed defaults.
 - This is intentional to ensure coordinated prompt/tool behavior updates reach all users consistently.
+
+---
+
+## 20) Setup Hedgey onboarding runtime (Phase II)
+
+Authoritative files:
+- Plan: `PHASE_ONBOARDING_HEDGEY_PLAN.md`
+- Content pack: `data/onboarding-hedgey-phase1.json`
+- Runtime: `js/onboarding-hedgey.js`
+- Thin integration: `js/agent1c.js`
+
+### 20.1 Implementation rules
+
+1. Reuse existing clippy/Hitomi UI components. Do not create a parallel assistant UI.
+2. Setup guidance must be non-LLM and driven by phase JSON content.
+3. Keep all setup copy in JSON; avoid hardcoding strings in runtime JS.
+4. Add only pills/chips as new UI surface in setup mode.
+5. If context is compacted, re-read the four authoritative files above before editing.
+
+### 20.2 Trigger wiring implemented
+
+- Vault flow:
+  - `vault_initialized` on Create Vault success
+  - `vault_skip_clicked` on skip path
+- Provider flow:
+  - `provider_section_opened_*` when provider card is selected
+  - `provider_key_input_started` when user starts typing key/url
+  - `provider_key_saved` on save actions
+  - `provider_test_success` / `provider_test_error` on validation outcomes
+  - `provider_ready_*` when provider is ready
+  - `provider_model_selected` on model changes
+
+### 20.3 UX behavior implemented
+
+- Setup guide activates only while onboarding is incomplete.
+- Setup links in bubble are clickable and routed to native HedgeyOS browser open path.
+- Clippy/Hitomi is anchored to bottom when shown from hidden state so setup windows stay visible.
+- Setup messages are deduped/cooldown-limited by onboarding runtime.
+- Hitomi desktop icon now persists during onboarding even without AI key, so guide remains available.
+
+### 20.4 Maintenance warning
+
+If setup behavior looks wrong, check in this order:
+1. `data/onboarding-hedgey-phase1.json` (source of truth)
+2. `js/onboarding-hedgey.js` (state/trigger engine)
+3. `js/agent1c.js` integration hooks in `wireSetupDom`, `wireProviderPreviewDom`, `initAgent1C`

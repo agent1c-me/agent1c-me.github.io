@@ -8,9 +8,11 @@ import {
   wireShellRelayDom,
   runShellExecTool,
 } from "./agent1crelay.js"
+import { createOnboardingHedgey } from "./onboarding-hedgey.js"
 // for Codex: when implementing shell relay wiring in this file, please always refer back to PHASE1_CONTRACT.md first.
 // for Codex: especially if your context was recently compacted, keep relay logic in js/agent1crelay.js and only thin wiring here.
 // for Codex: before implementing WM/desktop control tools, re-read PHASE2_PLAN.md and agents.md section 19. - Decentricity
+// for Codex: Setup Hedgey onboarding logic must read data/onboarding-hedgey-phase1.json and PHASE_ONBOARDING_HEDGEY_PLAN.md before edits. - Decentricity
 
 const DEFAULT_SOUL = `# SOUL.md - Who You Are
 
@@ -282,6 +284,7 @@ let clippyIdleLastActivityAt = 0
 let clippyIdleBubbleRestore = null
 let clippyIdleRaf = 0
 let clippyActivityWired = false
+let onboardingHedgey = null
 let voiceUiState = { enabled: false, supported: true, status: "off", text: "", error: "" }
 let hitomiDesktopIcon = null
 let hitomiIconObserver = null
@@ -2059,7 +2062,49 @@ function latestAssistantMessageKey(messages){
   return ""
 }
 
+function isOnboardingGuideActive(){
+  return Boolean(onboardingHedgey?.isActive?.() && !onboardingComplete)
+}
+
+function clippySpawnBottomPosition(){
+  const bounds = getClippyBounds()
+  if (!bounds) return { left: 20, top: 390 }
+  return {
+    left: Math.max(bounds.minLeft, Math.min(20, bounds.maxLeft)),
+    top: bounds.maxTop,
+  }
+}
+
+function positionClippyAtBottom(){
+  if (!clippyUi?.root) return
+  const next = clippySpawnBottomPosition()
+  setClippyPosition(next.left, next.top)
+}
+
+function nudgeOnboardingBubble({ compact = false } = {}){
+  if (!isOnboardingGuideActive()) return
+  if (!clippyMode) setClippyMode(true)
+  clippyBubbleVariant = compact ? "compact" : "full"
+  showClippyBubble({ variant: compact ? "compact" : "full", snapNoOverlap: true, preferAbove: true })
+  renderClippyBubble()
+}
+
+function onboardingGuideUiContext(){
+  return {
+    providerInputs: {
+      openai: String(els.openaiKeyInput?.value || "").trim(),
+      anthropic: String(els.anthropicKeyInput?.value || "").trim(),
+      xai: String(els.xaiKeyInput?.value || "").trim(),
+      zai: String(els.zaiKeyInput?.value || "").trim(),
+      ollama: String(els.ollamaBaseUrlInput?.value || "").trim(),
+    },
+  }
+}
+
 function getClippyChatHtml(){
+  if (isOnboardingGuideActive()) {
+    return onboardingHedgey?.getRenderedHtml?.() || `<div class="clippy-line">No setup messages yet.</div>`
+  }
   const thread = getChatOneThread()
   const messages = Array.isArray(thread?.messages) ? thread.messages : []
   const thinking = isThreadThinking(thread?.id)
@@ -2074,6 +2119,9 @@ function getClippyChatHtml(){
 }
 
 function getClippyCompactHtml(){
+  if (isOnboardingGuideActive()) {
+    return onboardingHedgey?.getRenderedHtml?.() || `<div class="clippy-line">No setup messages yet.</div>`
+  }
   const thread = getChatOneThread()
   const messages = Array.isArray(thread?.messages) ? thread.messages : []
   const thinking = isThreadThinking(thread?.id)
@@ -2242,7 +2290,8 @@ function telegramSavedEventText(){
 
 async function refreshHitomiDesktopIcon(){
   const hasAiKey = await hasAnyAiProviderKey()
-  if (!hasAiKey) {
+  const keepForOnboarding = !onboardingComplete
+  if (!hasAiKey && !keepForOnboarding) {
     removeHitomiDesktopIcon()
     setClippyMode(false)
     return
@@ -2575,11 +2624,33 @@ function scrollClippyToBottom(){
   setTimeout(apply, 0)
 }
 
+function renderOnboardingChips(){
+  if (!clippyUi?.chips) return
+  if (!isOnboardingGuideActive()) {
+    clippyUi.chips.classList.add("clippy-hidden")
+    clippyUi.chips.innerHTML = ""
+    return
+  }
+  const groups = onboardingHedgey?.getPills?.() || { primary: [], secondary: [] }
+  const primary = Array.isArray(groups.primary) ? groups.primary : []
+  const secondary = Array.isArray(groups.secondary) ? groups.secondary : []
+  const mk = (pill, cls = "") => {
+    const klass = ["clippy-chip", cls].filter(Boolean).join(" ")
+    return `<button class="${escapeHtml(klass)}" data-pill-id="${escapeHtml(pill.id)}" type="button">${escapeHtml(pill.label)}</button>`
+  }
+  const primaryHtml = primary.map(p => mk(p)).join("")
+  const secondaryHtml = secondary.map(p => mk(p, "secondary")).join("")
+  const html = [primaryHtml, secondaryHtml].filter(Boolean).join("")
+  clippyUi.chips.innerHTML = html
+  clippyUi.chips.classList.toggle("clippy-hidden", !html)
+}
+
 function renderClippyBubble(){
   if (!clippyUi?.log || !clippyUi?.bubble) return
   const compact = clippyBubbleVariant === "compact"
   clippyUi.bubble.classList.toggle("compact", compact)
   clippyUi.log.innerHTML = compact ? getClippyCompactHtml() : getClippyChatHtml()
+  renderOnboardingChips()
   scrollClippyToBottom()
   requestAnimationFrame(positionClippyBubble)
 }
@@ -2601,14 +2672,15 @@ function ensureClippyAssistant(){
   if (!desktop) return null
   const root = document.createElement("div")
   root.className = "clippy-assistant clippy-hidden"
-  root.style.left = "28px"
-  root.style.top = "390px"
+  root.style.left = "20px"
+  root.style.top = "20px"
   root.innerHTML = `
     <div class="clippy-voice clippy-hidden"></div>
     <div class="clippy-bubble clippy-hidden">
       <div class="clippy-bubble-title">Hitomi</div>
       <div class="clippy-bubble-content">
         <div class="clippy-log"></div>
+        <div class="clippy-chips clippy-hidden"></div>
         <form class="clippy-form">
           <input class="clippy-input" type="text" placeholder="Write a message..." />
           <button class="clippy-send" type="submit">Send</button>
@@ -2623,6 +2695,7 @@ function ensureClippyAssistant(){
   const voice = root.querySelector(".clippy-voice")
   const bubble = root.querySelector(".clippy-bubble")
   const log = root.querySelector(".clippy-log")
+  const chips = root.querySelector(".clippy-chips")
   const form = root.querySelector(".clippy-form")
   const input = root.querySelector(".clippy-input")
   const menu = document.createElement("div")
@@ -2767,6 +2840,18 @@ function ensureClippyAssistant(){
     if (!text) return
     markClippyActivity()
     if (input) input.value = ""
+    if (isOnboardingGuideActive()) {
+      try {
+        await onboardingHedgey?.handleUserInput?.(text)
+        clippyBubbleVariant = "full"
+        showClippyBubble({ variant: "full", snapNoOverlap: true, preferAbove: true })
+        renderClippyBubble()
+        setStatus("Setup guide active.")
+      } catch (err) {
+        setStatus(err instanceof Error ? err.message : "Setup guide failed")
+      }
+      return
+    }
     try {
       clippyBubbleVariant = "full"
       showClippyBubble({ variant: "full", snapNoOverlap: true, preferAbove: false })
@@ -2782,7 +2867,28 @@ function ensureClippyAssistant(){
       setStatus(err instanceof Error ? err.message : "Chat failed")
     }
   })
-  clippyUi = { root, body, bubble, log, form, input, menu, voice }
+  chips?.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-pill-id]")
+    if (!btn) return
+    const pillId = String(btn.getAttribute("data-pill-id") || "").trim()
+    if (!pillId) return
+    markClippyActivity()
+    await onboardingHedgey?.handlePill?.(pillId)
+    clippyBubbleVariant = "full"
+    showClippyBubble({ variant: "full", snapNoOverlap: true, preferAbove: true })
+    renderClippyBubble()
+  })
+  log?.addEventListener("click", (e) => {
+    const link = e.target.closest("a[data-open-url]")
+    if (!link) return
+    const target = String(link.getAttribute("data-open-url") || "").trim()
+    if (!target) return
+    e.preventDefault()
+    markClippyActivity()
+    onboardingHedgey?.onLinkClick?.(target)
+  })
+  clippyUi = { root, body, bubble, log, chips, form, input, menu, voice }
+  positionClippyAtBottom()
   document.addEventListener("pointerdown", (e) => {
     if (!clippyMode) return
     if (clippyUi?.menu && !clippyUi.menu.classList.contains("clippy-hidden")) {
@@ -2825,6 +2931,7 @@ function setClippyMode(next){
   ui.root.classList.toggle("clippy-hidden", !clippyMode)
   if (ui.menu) ui.menu.classList.add("clippy-hidden")
   if (clippyMode) {
+    if (wasHidden) positionClippyAtBottom()
     if (wasHidden) animateHitomiWispsShow(ui.root)
     const thread = getChatOneThread()
     const messages = Array.isArray(thread?.messages) ? thread.messages : []
@@ -3356,6 +3463,7 @@ function applyOnboardingWindowState(){
   minimizeWindow(wins.soul)
   minimizeWindow(wins.tools)
   minimizeWindow(wins.heartbeat)
+  syncOnboardingGuideActivation()
 }
 
 function revealPostOpenAiWindows(){
@@ -3371,11 +3479,22 @@ function revealPostOpenAiWindows(){
   setClippyMode(true)
 }
 
+function syncOnboardingGuideActivation(){
+  if (!onboardingHedgey) return
+  const shouldBeActive = !onboardingComplete
+  onboardingHedgey.setActive(shouldBeActive)
+  if (!shouldBeActive) return
+  setClippyMode(true)
+  positionClippyAtBottom()
+  nudgeOnboardingBubble({ compact: false })
+}
+
 async function maybeCompleteOnboarding(){
   if (onboardingComplete) return true
   const hasAiSecret = await hasAnyAiProviderKey()
   if (!hasAiSecret || !onboardingOpenAiTested) return false
   onboardingComplete = true
+  onboardingHedgey?.setActive?.(false)
   localStorage.setItem(ONBOARDING_KEY, "1")
   minimizeWindow(wins.openai)
   revealPostOpenAiWindows()
@@ -4196,11 +4315,13 @@ function wireSetupDom(){
       setUnencryptedMode(false)
       closeWindow(setupWin)
       await addEvent("vault_unlocked", "Vault initialized and unlocked")
+      onboardingHedgey?.handleTrigger?.("vault_initialized")
       await createWorkspace({ showUnlock: false, onboarding: true })
       await refreshModelDropdown()
       refreshTelegramLoop()
       refreshUi()
       applyOnboardingWindowState()
+      nudgeOnboardingBubble({ compact: false })
       setStatus("Vault initialized and unlocked.")
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Could not initialize vault")
@@ -4208,6 +4329,7 @@ function wireSetupDom(){
   })
   els.setupSkipBtn?.addEventListener("click", async () => {
     try {
+      onboardingHedgey?.handleTrigger?.("vault_skip_clicked")
       setUnencryptedMode(true)
       appState.unlocked = false
       appState.sessionKey = null
@@ -4215,6 +4337,7 @@ function wireSetupDom(){
       await createWorkspace({ showUnlock: false, onboarding: true })
       minimizeWindow(setupWin)
       applyOnboardingWindowState()
+      nudgeOnboardingBubble({ compact: false })
       setStatus("Encryption skipped for now. Configure AI APIs to continue.")
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Could not skip vault setup")
@@ -4274,8 +4397,26 @@ function wireProviderPreviewDom(){
     [els.providerCardOllama, "ollama"],
   ]
   for (const [node, provider] of cardHandlers) {
-    node?.addEventListener("click", () => setPreviewProviderEditor(provider))
+    node?.addEventListener("click", () => {
+      setPreviewProviderEditor(provider)
+      onboardingHedgey?.handleTrigger?.(`provider_section_opened_${provider}`, { provider })
+      nudgeOnboardingBubble({ compact: true })
+    })
   }
+
+  const wireProviderInputHint = (node, provider) => {
+    node?.addEventListener("input", () => {
+      const hasValue = Boolean(String(node.value || "").trim())
+      if (!hasValue) return
+      onboardingHedgey?.handleProviderInputStarted?.(provider)
+      nudgeOnboardingBubble({ compact: true })
+    })
+  }
+  wireProviderInputHint(els.openaiKeyInput, "openai")
+  wireProviderInputHint(els.anthropicKeyInput, "anthropic")
+  wireProviderInputHint(els.xaiKeyInput, "xai")
+  wireProviderInputHint(els.zaiKeyInput, "zai")
+  wireProviderInputHint(els.ollamaBaseUrlInput, "ollama")
 
   els.aiActiveProviderSelect?.addEventListener("change", async () => {
     const provider = els.aiActiveProviderSelect.value || "openai"
@@ -4308,6 +4449,10 @@ function wireProviderPreviewDom(){
       }
       await saveProviderKey("anthropic", previewProviderState.anthropicKey)
       await validateProviderKey("anthropic", previewProviderState.anthropicKey)
+      onboardingHedgey?.handleTrigger?.("provider_test_success", {
+        provider: "anthropic",
+        model: previewProviderState.anthropicModel,
+      })
       previewProviderState.anthropicValidated = true
       previewProviderState.anthropicKey = ""
       if (els.anthropicKeyInput) els.anthropicKeyInput.value = ""
@@ -4316,7 +4461,13 @@ function wireProviderPreviewDom(){
       persistPreviewProviderState()
       refreshProviderPreviewUi()
       await addEvent("provider_key_saved", "Anthropic key stored and validated.")
+      onboardingHedgey?.handleTrigger?.("provider_key_saved", { provider: "anthropic" })
+      onboardingHedgey?.handleTrigger?.("provider_ready_anthropic", {
+        provider: "anthropic",
+        model: previewProviderState.anthropicModel,
+      })
       const completed = await maybeCompleteOnboarding()
+      if (!completed) nudgeOnboardingBubble({ compact: true })
       setStatus(completed
         ? `Anthropic key saved. Onboarding continued (${previewProviderState.anthropicModel}).`
         : `Anthropic key saved. Active provider switched to Anthropic (${previewProviderState.anthropicModel}).`)
@@ -4324,6 +4475,11 @@ function wireProviderPreviewDom(){
       previewProviderState.anthropicValidated = false
       anthropicEditing = true
       refreshProviderPreviewUi()
+      onboardingHedgey?.handleTrigger?.("provider_test_error", {
+        provider: "anthropic",
+        error: err instanceof Error ? err.message : "validation failed",
+      })
+      nudgeOnboardingBubble({ compact: true })
       setStatus(err instanceof Error ? err.message : "Could not save Anthropic key")
     }
   })
@@ -4346,6 +4502,10 @@ function wireProviderPreviewDom(){
       }
       await saveProviderKey("xai", previewProviderState.xaiKey)
       await validateProviderKey("xai", previewProviderState.xaiKey)
+      onboardingHedgey?.handleTrigger?.("provider_test_success", {
+        provider: "xai",
+        model: previewProviderState.xaiModel,
+      })
       previewProviderState.xaiValidated = true
       previewProviderState.xaiKey = ""
       if (els.xaiKeyInput) els.xaiKeyInput.value = ""
@@ -4354,7 +4514,13 @@ function wireProviderPreviewDom(){
       persistPreviewProviderState()
       refreshProviderPreviewUi()
       await addEvent("provider_key_saved", "xAI key stored and validated.")
+      onboardingHedgey?.handleTrigger?.("provider_key_saved", { provider: "xai" })
+      onboardingHedgey?.handleTrigger?.("provider_ready_xai", {
+        provider: "xai",
+        model: previewProviderState.xaiModel,
+      })
       const completed = await maybeCompleteOnboarding()
+      if (!completed) nudgeOnboardingBubble({ compact: true })
       setStatus(completed
         ? `xAI key saved. Onboarding continued (${previewProviderState.xaiModel}).`
         : `xAI key saved. Active provider switched to xAI (${previewProviderState.xaiModel}).`)
@@ -4362,6 +4528,11 @@ function wireProviderPreviewDom(){
       previewProviderState.xaiValidated = false
       xaiEditing = true
       refreshProviderPreviewUi()
+      onboardingHedgey?.handleTrigger?.("provider_test_error", {
+        provider: "xai",
+        error: err instanceof Error ? err.message : "validation failed",
+      })
+      nudgeOnboardingBubble({ compact: true })
       setStatus(err instanceof Error ? err.message : "Could not save xAI key")
     }
   })
@@ -4384,6 +4555,10 @@ function wireProviderPreviewDom(){
       }
       await saveProviderKey("zai", previewProviderState.zaiKey)
       await validateProviderKey("zai", previewProviderState.zaiKey)
+      onboardingHedgey?.handleTrigger?.("provider_test_success", {
+        provider: "zai",
+        model: previewProviderState.zaiModel,
+      })
       previewProviderState.zaiValidated = true
       previewProviderState.zaiKey = ""
       if (els.zaiKeyInput) els.zaiKeyInput.value = ""
@@ -4392,7 +4567,13 @@ function wireProviderPreviewDom(){
       persistPreviewProviderState()
       refreshProviderPreviewUi()
       await addEvent("provider_key_saved", "z.ai key stored and validated.")
+      onboardingHedgey?.handleTrigger?.("provider_key_saved", { provider: "zai" })
+      onboardingHedgey?.handleTrigger?.("provider_ready_zai", {
+        provider: "zai",
+        model: previewProviderState.zaiModel,
+      })
       const completed = await maybeCompleteOnboarding()
+      if (!completed) nudgeOnboardingBubble({ compact: true })
       setStatus(completed
         ? `z.ai key saved. Onboarding continued (${previewProviderState.zaiModel}).`
         : `z.ai key saved. Active provider switched to z.ai (${previewProviderState.zaiModel}).`)
@@ -4400,6 +4581,11 @@ function wireProviderPreviewDom(){
       previewProviderState.zaiValidated = false
       zaiEditing = true
       refreshProviderPreviewUi()
+      onboardingHedgey?.handleTrigger?.("provider_test_error", {
+        provider: "zai",
+        error: err instanceof Error ? err.message : "validation failed",
+      })
+      nudgeOnboardingBubble({ compact: true })
       setStatus(err instanceof Error ? err.message : "Could not save z.ai key")
     }
   })
@@ -4439,34 +4625,74 @@ function wireProviderPreviewDom(){
   }
   els.anthropicModelInput?.addEventListener("change", () => {
     syncAnthropicModel()
+    onboardingHedgey?.handleTrigger?.("provider_model_selected", {
+      provider: "anthropic",
+      model: previewProviderState.anthropicModel,
+    })
+    nudgeOnboardingBubble({ compact: true })
     setStatus(`Anthropic model saved: ${previewProviderState.anthropicModel}.`)
   })
   els.anthropicModelStored?.addEventListener("change", () => {
     syncAnthropicModel()
+    onboardingHedgey?.handleTrigger?.("provider_model_selected", {
+      provider: "anthropic",
+      model: previewProviderState.anthropicModel,
+    })
+    nudgeOnboardingBubble({ compact: true })
     setStatus(`Anthropic model saved: ${previewProviderState.anthropicModel}.`)
   })
   els.zaiModelInput?.addEventListener("change", () => {
     syncZaiModel()
+    onboardingHedgey?.handleTrigger?.("provider_model_selected", {
+      provider: "zai",
+      model: previewProviderState.zaiModel,
+    })
+    nudgeOnboardingBubble({ compact: true })
     setStatus(`z.ai model saved: ${previewProviderState.zaiModel}.`)
   })
   els.zaiModelStored?.addEventListener("change", () => {
     syncZaiModel()
+    onboardingHedgey?.handleTrigger?.("provider_model_selected", {
+      provider: "zai",
+      model: previewProviderState.zaiModel,
+    })
+    nudgeOnboardingBubble({ compact: true })
     setStatus(`z.ai model saved: ${previewProviderState.zaiModel}.`)
   })
   els.xaiModelInput?.addEventListener("change", () => {
     syncXaiModel()
+    onboardingHedgey?.handleTrigger?.("provider_model_selected", {
+      provider: "xai",
+      model: previewProviderState.xaiModel,
+    })
+    nudgeOnboardingBubble({ compact: true })
     setStatus(`xAI model saved: ${previewProviderState.xaiModel}.`)
   })
   els.xaiModelStored?.addEventListener("change", () => {
     syncXaiModel()
+    onboardingHedgey?.handleTrigger?.("provider_model_selected", {
+      provider: "xai",
+      model: previewProviderState.xaiModel,
+    })
+    nudgeOnboardingBubble({ compact: true })
     setStatus(`xAI model saved: ${previewProviderState.xaiModel}.`)
   })
   els.ollamaModelInput?.addEventListener("change", () => {
     syncOllamaModel()
+    onboardingHedgey?.handleTrigger?.("provider_model_selected", {
+      provider: "ollama",
+      model: previewProviderState.ollamaModel,
+    })
+    nudgeOnboardingBubble({ compact: true })
     setStatus(`Ollama model saved: ${previewProviderState.ollamaModel}.`)
   })
   els.ollamaModelStored?.addEventListener("change", () => {
     syncOllamaModel()
+    onboardingHedgey?.handleTrigger?.("provider_model_selected", {
+      provider: "ollama",
+      model: previewProviderState.ollamaModel,
+    })
+    nudgeOnboardingBubble({ compact: true })
     setStatus(`Ollama model saved: ${previewProviderState.ollamaModel}.`)
   })
   syncAnthropicModel()
@@ -4484,8 +4710,20 @@ function wireProviderPreviewDom(){
     refreshProviderPreviewUi()
     if (previewProviderState.ollamaValidated) {
       await addEvent("provider_key_saved", "Ollama endpoint saved.")
+      onboardingHedgey?.handleTrigger?.("provider_key_saved", { provider: "ollama" })
+      onboardingHedgey?.handleTrigger?.("provider_test_success", {
+        provider: "ollama",
+        model: previewProviderState.ollamaModel,
+      })
+      onboardingHedgey?.handleTrigger?.("provider_ready_ollama", {
+        provider: "ollama",
+        model: previewProviderState.ollamaModel,
+      })
+      nudgeOnboardingBubble({ compact: true })
       setStatus(`Ollama endpoint saved. Active provider switched to ollama (${previewProviderState.ollamaModel}).`)
     } else {
+      onboardingHedgey?.handleTrigger?.("provider_test_error", { provider: "ollama", code: "missing_url" })
+      nudgeOnboardingBubble({ compact: true })
       setStatus("Ollama URL missing.")
     }
   })
@@ -4554,10 +4792,20 @@ function wireMainDom(){
   })
   els.modelInput?.addEventListener("change", () => {
     syncModelSelectors(els.modelInput.value || appState.config.model)
+    onboardingHedgey?.handleTrigger?.("provider_model_selected", {
+      provider: "openai",
+      model: appState.config.model,
+    })
+    nudgeOnboardingBubble({ compact: true })
     scheduleConfigAutosave()
   })
   els.modelInputEdit?.addEventListener("change", () => {
     syncModelSelectors(els.modelInputEdit.value || appState.config.model)
+    onboardingHedgey?.handleTrigger?.("provider_model_selected", {
+      provider: "openai",
+      model: appState.config.model,
+    })
+    nudgeOnboardingBubble({ compact: true })
     scheduleConfigAutosave()
   })
   els.temperatureInput?.addEventListener("change", () => {
@@ -4639,13 +4887,28 @@ function wireMainDom(){
       localStorage.removeItem(ONBOARDING_OPENAI_TEST_KEY)
       await addEvent("provider_key_saved", providerSavedEventText("openai"))
       await validateProviderKey("openai", key)
+      onboardingHedgey?.handleTrigger?.("provider_key_saved", { provider: "openai" })
+      onboardingHedgey?.handleTrigger?.("provider_test_success", {
+        provider: "openai",
+        model: appState.config.model,
+      })
+      onboardingHedgey?.handleTrigger?.("provider_ready_openai", {
+        provider: "openai",
+        model: appState.config.model,
+      })
       setActivePreviewProvider("openai")
       await refreshBadges()
       const completed = await maybeCompleteOnboarding()
+      if (!completed) nudgeOnboardingBubble({ compact: true })
       setStatus(completed ? "OpenAI key saved and validated. Onboarding continued." : "OpenAI key saved and validated.")
     } catch (err) {
       openAiEditing = true
       await refreshBadges()
+      onboardingHedgey?.handleTrigger?.("provider_test_error", {
+        provider: "openai",
+        error: err instanceof Error ? err.message : "validation failed",
+      })
+      nudgeOnboardingBubble({ compact: true })
       setStatus(err instanceof Error ? err.message : "Could not save OpenAI key")
     }
   })
@@ -4849,6 +5112,23 @@ export async function initAgent1C({ wm }){
   onboardingComplete = localStorage.getItem(ONBOARDING_KEY) === "1"
   onboardingOpenAiTested = localStorage.getItem(ONBOARDING_OPENAI_TEST_KEY) === "1"
   await loadPersistentState()
+  onboardingHedgey = await createOnboardingHedgey({
+    openUrl: (url) => {
+      const opened = wmRef?.openUrlInBrowser?.(url, { newWindow: false })
+      return Boolean(opened?.ok)
+    },
+    onEmitAction: (action) => {
+      if (action === "open_ollama_setup_window") {
+        openOllamaSetupWindow()
+        setStatus("Opened Ollama setup.")
+      }
+    },
+    getUiContext: onboardingGuideUiContext,
+  })
+  onboardingHedgey.setActive(!onboardingComplete)
+  if (!onboardingComplete && (appState.vaultReady || appState.unencryptedMode)) {
+    onboardingHedgey.handleTrigger("vault_initialized")
+  }
   const hasAiSecret = await hasAnyAiProviderKey()
   const onboarding = !hasAiSecret || !onboardingComplete
 
@@ -4861,6 +5141,7 @@ export async function initAgent1C({ wm }){
       await addEvent("vault_warning", "WARNING: Your APIs are not encrypted. Click on Create Vault to encrypt your APIs.")
       setStatus("Unencrypted mode is active. You can configure APIs now.")
     }
+    syncOnboardingGuideActivation()
     return
   }
 
@@ -4874,4 +5155,5 @@ export async function initAgent1C({ wm }){
   } else {
     setStatus("Vault locked. Unlock to continue.")
   }
+  syncOnboardingGuideActivation()
 }

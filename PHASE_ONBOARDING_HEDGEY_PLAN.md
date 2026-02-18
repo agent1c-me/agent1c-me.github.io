@@ -172,6 +172,29 @@ Store grammar definitions in:
 - Add cooldown/dedupe and off-topic guard logic.
 - Ensure onboarding completion cleanly disables setup-only behavior.
 
+### Phase 2 Status (Implemented)
+- Runtime module added: `js/onboarding-hedgey.js`
+- Source-of-truth JSON loaded at runtime: `data/onboarding-hedgey-phase1.json`
+- Existing Hitomi/clippy UI reused (full + compact bubble + avatar + existing positioning logic).
+- New UI addition implemented: setup action chips in clippy bubble.
+- Onboarding wiring now connected to:
+  - Create Vault init success (`vault_initialized`)
+  - Create Vault skip (`vault_skip_clicked`)
+  - AI provider section open events (`provider_section_opened_*`)
+  - Provider key input started (`provider_key_input_started`)
+  - Provider save/test success/error (`provider_key_saved`, `provider_test_success`, `provider_test_error`, `provider_ready_*`)
+  - Provider model selection (`provider_model_selected`)
+- Setup links in onboarding bubble are clickable and open through native HedgeyOS browser route.
+- Onboarding guide activation is tied to onboarding completion state.
+- Clippy spawn is forced to bottom when shown from hidden state to reduce overlap with setup windows.
+
+### Phase 2 Runtime Notes
+- Keep integration thin in `js/agent1c.js`; onboarding behavior should remain centralized in `js/onboarding-hedgey.js`.
+- Do not duplicate setup copy in JS strings; update `data/onboarding-hedgey-phase1.json` instead.
+- If context gets compacted, re-read this file plus:
+  - `data/onboarding-hedgey-phase1.json`
+  - `agents.md` (latest integration notes section)
+
 ## UI Integration Plan
 1. Reuse existing clippy visual shell for consistency.
 2. Add setup mode render path for bubble content:
