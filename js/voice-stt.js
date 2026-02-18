@@ -1,5 +1,6 @@
 const LS_VOICE_CONSENT = "agent1c_voice_stt_consent_v1";
 const LS_VOICE_ENABLED = "agent1c_voice_stt_enabled_v1";
+const LS_VOICE_MODE = "agent1c_voice_stt_mode_v1";
 const FOLLOWUP_WINDOW_MS = 45000;
 const FIRST_WAKE_IDLE_MS = 7000;
 const FIRST_WAKE_SILENCE_MS = 2200;
@@ -31,7 +32,14 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const supported = typeof SR === "function";
   let consented = localStorage.getItem(LS_VOICE_CONSENT) === "1";
-  let enabled = consented && localStorage.getItem(LS_VOICE_ENABLED) === "1";
+  const storedMode = String(localStorage.getItem(LS_VOICE_MODE) || "").toLowerCase();
+  const legacyEnabled = localStorage.getItem(LS_VOICE_ENABLED) === "1";
+  let mode = "off";
+  if (consented) {
+    if (storedMode === "wake" || storedMode === "free") mode = storedMode;
+    else if (legacyEnabled) mode = "wake";
+  }
+  let enabled = mode !== "off";
   let recognition = null;
   let recognizing = false;
   let starting = false;
@@ -57,6 +65,7 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
   function emitState(){
     const detail = {
       enabled: !!enabled,
+      mode,
       supported: !!supported,
       consented: !!consented,
       status: currentStatus,
@@ -87,11 +96,16 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
     }
     button.disabled = false;
     if (enabled) {
-      button.textContent = "🎤";
-      button.title = "Voice wake-word is ON. Click to turn off.";
+      if (mode === "free") {
+        button.textContent = "🗣️";
+        button.title = "Voice is ON (always listening). Click to turn off.";
+      } else {
+        button.textContent = "🎤";
+        button.title = "Voice is ON (wake-word mode). Click for always-listening mode.";
+      }
     } else {
       button.textContent = "🎙️";
-      button.title = "Voice wake-word is OFF. Click to turn on.";
+      button.title = "Voice is OFF. Click to turn on wake-word mode.";
     }
     button.setAttribute("aria-label", button.title);
   }
@@ -109,7 +123,9 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
 
   function updateIdleStatus(){
     if (!enabled) return;
-    if (isFollowupActive()) {
+    if (mode === "free") {
+      setStatus("idle", "Always listening (no wake-word)");
+    } else if (isFollowupActive()) {
       setStatus("idle", "Listening for follow-up...");
     } else {
       setStatus("idle", "Waiting for \"agentic\"");
@@ -195,6 +211,11 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
 
   function persistEnabled(){
     localStorage.setItem(LS_VOICE_ENABLED, enabled ? "1" : "0");
+  }
+
+  function persistMode(){
+    localStorage.setItem(LS_VOICE_MODE, mode);
+    persistEnabled();
   }
 
   function composeCaptureText(){
@@ -290,13 +311,14 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
         const txt = normalizeSpaces(result?.[0]?.transcript || "");
         if (!txt) continue;
         if (!captureActive) {
+          const bypassWake = mode === "free";
           const afterWake = extractAfterWake(txt);
-          if (afterWake === null && !isFollowupActive()) {
+          if (!bypassWake && afterWake === null && !isFollowupActive()) {
             showHeardHint(txt);
             continue;
           }
           captureActive = true;
-          wakeCapturePrimed = afterWake !== null;
+          wakeCapturePrimed = afterWake !== null && !bypassWake;
           if (wakeCapturePrimed) playWakeChime();
           captureFinalParts = [];
           captureInterim = "";
@@ -381,15 +403,18 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
     restarting = false;
   }
 
-  function setEnabled(next){
+  function setMode(nextMode){
     if (!supported) {
+      mode = "off";
       enabled = false;
       setStatus("unsupported", "", "Speech recognition is not supported in this browser.");
       updateButton();
       return;
     }
-    enabled = !!next;
-    persistEnabled();
+    const next = String(nextMode || "").toLowerCase();
+    mode = next === "free" ? "free" : (next === "wake" ? "wake" : "off");
+    enabled = mode !== "off";
+    persistMode();
     if (enabled) {
       setStatus("starting", "Starting microphone...");
       startRecognition();
@@ -402,15 +427,19 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
 
   function onButtonClick(){
     if (!supported) return;
-    if (enabled) {
-      setEnabled(false);
+    if (mode === "wake") {
+      setMode("free");
+      return;
+    }
+    if (mode === "free") {
+      setMode("off");
       return;
     }
     if (!consented) {
       openConsentModal();
       return;
     }
-    setEnabled(true);
+    setMode("wake");
   }
 
   function initModalWiring(){
@@ -419,11 +448,11 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
       consented = true;
       localStorage.setItem(LS_VOICE_CONSENT, "1");
       closeConsentModal();
-      setEnabled(true);
+      setMode("wake");
     });
     btnNo.addEventListener("click", () => {
       closeConsentModal();
-      setEnabled(false);
+      setMode("off");
     });
     modal.addEventListener("click", (e) => {
       if (e.target === modal) closeConsentModal();
@@ -448,9 +477,11 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
 
   return {
     init,
-    setEnabled,
+    setEnabled: (next) => setMode(next ? "wake" : "off"),
+    setMode,
     getState: () => ({
       enabled: !!enabled,
+      mode,
       consented: !!consented,
       supported: !!supported,
       status: currentStatus,

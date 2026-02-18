@@ -2252,7 +2252,8 @@ function hideClippyBubble(){
 function voiceStatusLabel(){
   const s = voiceUiState || {}
   if (!s.supported) return "🎤 Speech recognition unsupported"
-  if (!s.enabled) return "🎙️ Voice wake-word is off"
+  if (!s.enabled) return "🎙️ Voice is off"
+  if (s.mode === "free" && s.status === "idle") return "🗣️ Always listening"
   if (s.status === "starting") return "🎤 Starting microphone..."
   if (s.status === "idle") return `🎤 ${s.text || "Waiting for \"agentic\""}` 
   if (s.status === "listening") return `🎧 ${s.text || "Listening..."}`
