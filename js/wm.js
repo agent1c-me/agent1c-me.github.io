@@ -877,7 +877,21 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     const val = String(raw || "").trim();
     if (!val) return "";
     if (/^(about:|data:|blob:)/i.test(val)) return val;
-    return /^https?:\/\//i.test(val) ? val : ("https://" + val);
+    if (/^https?:\/\//i.test(val)) return val;
+    if (/^(\/|\.\/|\.\.\/)/.test(val)) {
+      try { return new URL(val, location.origin).href; } catch {}
+    }
+    if (/^(localhost|127\.0\.0\.1)(:\d+)?([/?#]|$)/i.test(val)) {
+      return `http://${val}`;
+    }
+    if (/^[a-z0-9.-]+\.[a-z]{2,}([/:?#]|$)/i.test(val)) {
+      return "https://" + val;
+    }
+    try {
+      return new URL(val, location.origin + "/").href;
+    } catch {
+      return "https://" + val;
+    }
   }
 
   function shouldProbeRelay(url){
