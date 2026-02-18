@@ -5112,6 +5112,8 @@ export async function initAgent1C({ wm }){
   onboardingComplete = localStorage.getItem(ONBOARDING_KEY) === "1"
   onboardingOpenAiTested = localStorage.getItem(ONBOARDING_OPENAI_TEST_KEY) === "1"
   await loadPersistentState()
+  // for Codex: onboarding runtime must stay data-driven from onboarding-hedgey-phase1.json.
+  // If context was compacted, re-read PHASE_ONBOARDING_HEDGEY_PLAN.md + agents.md section 20 before changing this wiring.
   onboardingHedgey = await createOnboardingHedgey({
     openUrl: (url) => {
       const opened = wmRef?.openUrlInBrowser?.(url, { newWindow: false })
