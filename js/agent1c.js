@@ -2084,8 +2084,9 @@ function positionClippyAtBottom(){
 function nudgeOnboardingBubble({ compact = false } = {}){
   if (!isOnboardingGuideActive()) return
   if (!clippyMode) setClippyMode(true)
-  clippyBubbleVariant = compact ? "compact" : "full"
-  showClippyBubble({ variant: compact ? "compact" : "full", snapNoOverlap: true, preferAbove: true })
+  const setupCompact = true
+  clippyBubbleVariant = setupCompact ? "compact" : (compact ? "compact" : "full")
+  showClippyBubble({ variant: clippyBubbleVariant, snapNoOverlap: true, preferAbove: true })
   renderClippyBubble()
 }
 
@@ -2647,7 +2648,7 @@ function renderOnboardingChips(){
 
 function renderClippyBubble(){
   if (!clippyUi?.log || !clippyUi?.bubble) return
-  const compact = clippyBubbleVariant === "compact"
+  const compact = isOnboardingGuideActive() ? true : (clippyBubbleVariant === "compact")
   clippyUi.bubble.classList.toggle("compact", compact)
   clippyUi.log.innerHTML = compact ? getClippyCompactHtml() : getClippyChatHtml()
   renderOnboardingChips()
@@ -2809,7 +2810,10 @@ function ensureClippyAssistant(){
   body?.addEventListener("pointerup", (e) => {
     if (!dragging) return
     if (!moved) {
-      if (bubble?.classList.contains("clippy-hidden")) showClippyBubble({ variant: "full", snapNoOverlap: true, preferAbove: true })
+      if (bubble?.classList.contains("clippy-hidden")) {
+        const variant = isOnboardingGuideActive() ? "compact" : "full"
+        showClippyBubble({ variant, snapNoOverlap: true, preferAbove: true })
+      }
       else hideClippyBubble()
     } else if (bubble && !bubble.classList.contains("clippy-hidden")) {
       snapClippyOutOfBubble({ preferAbove: false })
@@ -2843,8 +2847,8 @@ function ensureClippyAssistant(){
     if (isOnboardingGuideActive()) {
       try {
         await onboardingHedgey?.handleUserInput?.(text)
-        clippyBubbleVariant = "full"
-        showClippyBubble({ variant: "full", snapNoOverlap: true, preferAbove: true })
+        clippyBubbleVariant = "compact"
+        showClippyBubble({ variant: "compact", snapNoOverlap: true, preferAbove: true })
         renderClippyBubble()
         setStatus("Setup guide active.")
       } catch (err) {
@@ -2874,8 +2878,8 @@ function ensureClippyAssistant(){
     if (!pillId) return
     markClippyActivity()
     await onboardingHedgey?.handlePill?.(pillId)
-    clippyBubbleVariant = "full"
-    showClippyBubble({ variant: "full", snapNoOverlap: true, preferAbove: true })
+    clippyBubbleVariant = "compact"
+    showClippyBubble({ variant: "compact", snapNoOverlap: true, preferAbove: true })
     renderClippyBubble()
   })
   log?.addEventListener("click", (e) => {
