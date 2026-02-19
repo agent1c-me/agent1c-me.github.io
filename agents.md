@@ -892,16 +892,6 @@ If setup behavior looks wrong, check in this order:
 
 ---
 
-## 22) Production Implementation Rule (No Kludges)
-
-For production paths in this repo:
-- Always prefer existing module objects and stable identifiers first (for example `panelId`, window state maps, existing desktop/window registries).
-- Do not implement feature logic by title-text pattern matching when a canonical object field exists.
-- Use text-pattern fallback only as temporary compatibility, never as primary routing in production flows.
-- Before adding new matching logic, audit existing state objects/functions and reuse them directly.
-
----
-
 ## 21) Cross-Repo Delta Source
 
 When working between `.me` and `.ai`, use these diff maps first:

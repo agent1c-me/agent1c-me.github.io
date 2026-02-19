@@ -229,7 +229,7 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     const order = Array.from(state.entries())
       .sort((a,b) => a[1].createdAt - b[1].createdAt)
       .map(([id, st]) => {
-        metaById.set(id, { title: st.title, kind: st.kind, panelId: st.panelId || "" });
+        metaById.set(id, { title: st.title, kind: st.kind });
         return id;
       });
 

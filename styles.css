@@ -574,59 +574,46 @@
       max-height: min(300px, 56vh);
       overflow: auto;
     }
-    .desktop-folder-icons{
-      grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
-      align-items: start;
+    .desktop-folder-item{
+      display: grid;
+      grid-template-columns: 18px 1fr;
+      align-items: center;
       gap: 6px;
-    }
-    .desktop-folder-icon{
-      width: 72px;
-      min-height: 66px;
-      border: 0;
-      background: transparent;
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #f6f2e3;
       color: var(--os-black);
-      display: grid;
-      grid-template-rows: auto 1fr;
-      align-items: start;
-      justify-items: center;
-      padding: 2px 2px 0;
-      cursor: pointer;
       font: inherit;
+      font-size: 11px;
+      line-height: 1.2;
+      text-align: left;
+      padding: 4px 6px;
+      cursor: pointer;
     }
-    .desktop-folder-icon-glyph{
-      width: 30px;
-      height: 30px;
-      display: grid;
-      place-items: center;
-      font-size: 20px;
+    .desktop-folder-item:hover{
+      background: #ece4d0;
+    }
+    .desktop-folder-item-glyph{
+      font-size: 13px;
       line-height: 1;
-      border-radius: 6px;
     }
-    .desktop-folder-icon-label{
-      width: 100%;
-      text-align: center;
-      font-size: 10px;
-      line-height: 1.1;
-      padding: 1px 2px 0;
-      display: grid;
-      gap: 1px;
-    }
-    .desktop-folder-icon-line{
-      width: 100%;
+    .desktop-folder-item-label{
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-    }
-    .desktop-folder-icon:hover .desktop-folder-icon-glyph{
-      filter: brightness(0.92);
     }
     body.dark .desktop-folder-overlay{
       background: #1a1d23;
       border-color: #4d5668;
       color: #d8dfee;
     }
-    body.dark .desktop-folder-icon{
+    body.dark .desktop-folder-item{
+      background: #202632;
+      border-color: #4d5668;
       color: #d8dfee;
+    }
+    body.dark .desktop-folder-item:hover{
+      background: #2a3344;
     }
 
     /* ===== Windows ===== */
