@@ -157,15 +157,6 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     const rows = Math.max(1, Math.ceil(iconCount / cols));
     return pad + rows * cellH;
   }
-
-  function inferPanelIdFromTitle(title){
-    const t = String(title || "").trim().toLowerCase();
-    if (!t) return "";
-    if (t.includes("soul.md")) return "soul";
-    if (t.includes("tools.md")) return "tools";
-    if (t.includes("heartbeat.md")) return "heartbeat";
-    return "";
-  }
   function getLayoutBounds(){
     const { w: dw, h: dh } = deskSize();
     const reserveBottom = getIconReserveHeight();
@@ -238,11 +229,7 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     const order = Array.from(state.entries())
       .sort((a,b) => a[1].createdAt - b[1].createdAt)
       .map(([id, st]) => {
-        metaById.set(id, {
-          title: st.title,
-          kind: st.kind,
-          panelId: st.panelId || inferPanelIdFromTitle(st.title),
-        });
+        metaById.set(id, { title: st.title, kind: st.kind, panelId: st.panelId || "" });
         return id;
       });
 
