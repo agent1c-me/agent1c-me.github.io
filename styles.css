@@ -550,6 +550,72 @@
       white-space: nowrap;
     }
 
+    .desktop-folder-overlay{
+      position: fixed;
+      z-index: 12020;
+      min-width: 200px;
+      max-width: min(320px, 58vw);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fffef4;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.24);
+      padding: 8px 8px 6px;
+      pointer-events: auto;
+    }
+    .desktop-folder-title{
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      padding: 0 2px;
+    }
+    .desktop-folder-items{
+      display: grid;
+      gap: 4px;
+      max-height: min(300px, 56vh);
+      overflow: auto;
+    }
+    .desktop-folder-item{
+      display: grid;
+      grid-template-columns: 18px 1fr;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #f6f2e3;
+      color: var(--os-black);
+      font: inherit;
+      font-size: 11px;
+      line-height: 1.2;
+      text-align: left;
+      padding: 4px 6px;
+      cursor: pointer;
+    }
+    .desktop-folder-item:hover{
+      background: #ece4d0;
+    }
+    .desktop-folder-item-glyph{
+      font-size: 13px;
+      line-height: 1;
+    }
+    .desktop-folder-item-label{
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    body.dark .desktop-folder-overlay{
+      background: #1a1d23;
+      border-color: #4d5668;
+      color: #d8dfee;
+    }
+    body.dark .desktop-folder-item{
+      background: #202632;
+      border-color: #4d5668;
+      color: #d8dfee;
+    }
+    body.dark .desktop-folder-item:hover{
+      background: #2a3344;
+    }
+
     /* ===== Windows ===== */
     .window{
       position: absolute;
