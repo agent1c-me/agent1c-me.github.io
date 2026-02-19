@@ -5113,7 +5113,7 @@ async function createWorkspace({ showUnlock, onboarding }) {
   const savedPanelIds = readSavedAgentPanelIds()
   const shouldSpawnPanel = (panelId) => {
     if (!savedPanelIds) return true
-    if (panelId === "shellrelay") return true
+    if (panelId === "shellrelay" || panelId === "soul" || panelId === "tools" || panelId === "heartbeat") return true
     if (onboarding && panelId === "openai") return true
     return savedPanelIds.has(panelId)
   }

@@ -2,6 +2,21 @@ function normalizeTitle(value){
   return String(value || "").trim().toLowerCase()
 }
 
+function splitTitleTwoLines(title){
+  const t = (title || "").trim()
+  if (!t) return ["", ""]
+  const max1 = 12
+  const max2 = 12
+  if (t.length <= max1) return [t, ""]
+  let cut = t.lastIndexOf(" ", max1)
+  if (cut < 5) cut = max1
+  const line1 = t.slice(0, cut).trim()
+  const rest = t.slice(cut).trim()
+  if (rest.length <= max2) return [line1, rest]
+  const line2 = `${rest.slice(0, Math.max(0, max2 - 1)).trimEnd()}…`
+  return [line1, line2]
+}
+
 export function createDesktopFolders({ desktop } = {}){
   let overlayEl = null
   let openFolderId = ""
@@ -13,8 +28,10 @@ export function createDesktopFolders({ desktop } = {}){
       title: "Persona",
       glyph: "🗂️",
       match: (meta) => {
+        const panelId = normalizeTitle(meta?.panelId)
+        if (panelId === "soul" || panelId === "tools" || panelId === "heartbeat") return true
         const title = normalizeTitle(meta?.title)
-        return title === "soul.md" || title === "tools.md" || title === "heartbeat.md"
+        return title.includes("soul.md") || title.includes("tools.md") || title.includes("heartbeat.md")
       },
     },
   ]
@@ -106,13 +123,19 @@ export function createDesktopFolders({ desktop } = {}){
     }
     root.innerHTML = `
       <div class="desktop-folder-title">${escapeHtml(folderMeta?.title || "Folder")}</div>
-      <div class="desktop-folder-items">
-        ${items.map(item => `
-          <button class="desktop-folder-item" type="button" data-folder-item-id="${escapeHtml(item.id)}">
-            <span class="desktop-folder-item-glyph">${escapeHtml(item.glyph || "📄")}</span>
-            <span class="desktop-folder-item-label">${escapeHtml(item.title || "Item")}</span>
+      <div class="desktop-folder-items desktop-folder-icons">
+        ${items.map(item => {
+          const [line1, line2] = splitTitleTwoLines(item.title || "Item")
+          return `
+          <button class="desktop-folder-icon" type="button" data-folder-item-id="${escapeHtml(item.id)}">
+            <span class="desktop-folder-icon-glyph">${escapeHtml(item.glyph || "📄")}</span>
+            <span class="desktop-folder-icon-label">
+              <span class="desktop-folder-icon-line">${escapeHtml(line1)}</span>
+              <span class="desktop-folder-icon-line">${escapeHtml(line2)}</span>
+            </span>
           </button>
-        `).join("")}
+        `
+        }).join("")}
       </div>
     `
     positionOverlay(anchorEl)
