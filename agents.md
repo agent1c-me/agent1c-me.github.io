@@ -889,3 +889,15 @@ If setup behavior looks wrong, check in this order:
 1. `data/onboarding-hedgey-phase1.json` (source of truth)
 2. `js/onboarding-hedgey.js` (state/trigger engine)
 3. `js/agent1c.js` integration hooks in `wireSetupDom`, `wireProviderPreviewDom`, `initAgent1C`
+
+---
+
+## 21) Cross-Repo Delta Source
+
+When working between `.me` and `.ai`, use these diff maps first:
+- `LOCAL_VS_CLOUD_DIFF.md` (this repo's sovereign-first view)
+- `../agent1c-ai.github.io/CLOUD_VS_LOCAL_DIFF.md` (cloud-first mirror)
+
+Notes:
+- Keep intentional divergence explicit and documented.
+- If a capability exists in one repo but is hidden or unshown in the other (for example Telegram panel visibility), record it in both diff maps before changing runtime behavior.

@@ -292,6 +292,8 @@ let voiceUiState = { enabled: false, supported: true, status: "off", text: "", e
 let hitomiDesktopIcon = null
 let hitomiIconObserver = null
 let hitomiIconRelayoutQueued = false
+let eventToastExpanded = false
+let eventToastDismissedThroughId = 0
 const thinkingThreadIds = new Set()
 
 const CORE_AGENT_PANEL_IDS = ["chat", "openai", "telegram", "config", "shellrelay", "soul", "tools", "heartbeat", "events"]
@@ -3049,11 +3051,78 @@ function renderEvents(){
   if (!els.eventLog) return
   if (!appState.events.length) {
     els.eventLog.innerHTML = `<div class="agent-muted">No events yet.</div>`
+    renderEventToasts()
     return
   }
   els.eventLog.innerHTML = appState.events.map(event => {
     return `<div class="agent-event"><div class="agent-event-head"><span>${escapeHtml(event.type)}</span><span>${escapeHtml(formatTime(event.createdAt))}</span></div><div>${escapeHtml(event.message)}</div></div>`
   }).join("")
+  renderEventToasts()
+}
+
+function ensureEventToastUi(){
+  if (els.eventToastRoot && els.eventToastList && els.eventToastHeader && els.eventToastCloseAllBtn) return
+  let root = byId("agentEventToasts")
+  if (!root) {
+    root = document.createElement("section")
+    root.id = "agentEventToasts"
+    root.className = "agent-event-toasts"
+    root.setAttribute("aria-live", "polite")
+    root.setAttribute("aria-label", "Recent notifications")
+    root.innerHTML = `
+      <div id="agentEventToastHeader" class="agent-event-toast-header">
+        <span>Notifications</span>
+        <button id="agentEventToastCloseAll" type="button">Close All</button>
+      </div>
+      <div id="agentEventToastList" class="agent-event-toast-list"></div>
+    `
+    document.body.appendChild(root)
+  }
+  els.eventToastRoot = root
+  els.eventToastHeader = byId("agentEventToastHeader")
+  els.eventToastCloseAllBtn = byId("agentEventToastCloseAll")
+  els.eventToastList = byId("agentEventToastList")
+  if (!els.eventToastWired) {
+    els.eventToastWired = true
+    els.eventToastCloseAllBtn?.addEventListener("click", (e) => {
+      e.preventDefault()
+      const newest = appState.events[0]
+      eventToastDismissedThroughId = Number(newest?.id || eventToastDismissedThroughId || 0)
+      eventToastExpanded = false
+      renderEventToasts()
+    })
+    els.eventToastList?.addEventListener("click", () => {
+      const visible = appState.events.filter(event => Number(event.id || 0) > eventToastDismissedThroughId)
+      if (!visible.length) return
+      eventToastExpanded = !eventToastExpanded
+      renderEventToasts()
+    })
+  }
+}
+
+function renderEventToasts(){
+  ensureEventToastUi()
+  if (!els.eventToastRoot || !els.eventToastList || !els.eventToastHeader) return
+  const visible = appState.events.filter(event => Number(event.id || 0) > eventToastDismissedThroughId)
+  if (!visible.length) {
+    els.eventToastRoot.classList.remove("show")
+    els.eventToastRoot.classList.remove("expanded")
+    els.eventToastList.innerHTML = ""
+    return
+  }
+  const rows = (eventToastExpanded ? visible.slice(0, 5) : visible.slice(0, 1))
+  els.eventToastHeader.style.display = eventToastExpanded ? "flex" : "none"
+  els.eventToastList.innerHTML = rows.map(event => `
+    <article class="agent-event-toast-item">
+      <div class="agent-event-toast-item-head">
+        <span class="agent-event-toast-item-type">${escapeHtml(event.type)}</span>
+        <span class="agent-event-toast-item-time">${escapeHtml(formatTime(event.createdAt))}</span>
+      </div>
+      <div class="agent-event-toast-item-body">${escapeHtml(event.message)}</div>
+    </article>
+  `).join("")
+  els.eventToastRoot.classList.add("show")
+  els.eventToastRoot.classList.toggle("expanded", eventToastExpanded)
 }
 
 function setModelOptions(ids, selected){
@@ -5094,6 +5163,10 @@ async function createWorkspace({ showUnlock, onboarding }) {
   renderEvents()
   refreshUi()
   await refreshKnownFilesystemFiles()
+
+  if (!savedPanelIds && wins.events?.id) {
+    minimizeWindow(wins.events)
+  }
 
   if (onboarding) {
     applyOnboardingWindowState()

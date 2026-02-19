@@ -130,3 +130,8 @@ Open `http://localhost:8000`.
 - Vanilla HTML, CSS, and JavaScript (no npm dependency chain)
 - Changes should preserve HedgeyOS baseline behavior unless intentionally modified
 - Integration notes and guardrails are documented in `agents.md`
+
+## Cross-Repo Diff Map
+
+- `.me` vs `.ai` behavior map (sovereign reference): `LOCAL_VS_CLOUD_DIFF.md`
+- Reciprocal map in cloud repo: `../agent1c-ai.github.io/CLOUD_VS_LOCAL_DIFF.md`
