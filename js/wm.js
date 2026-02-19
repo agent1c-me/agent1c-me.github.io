@@ -1,7 +1,6 @@
 import { toEmbedUrl } from "./embedify.js";
 import { NOTES_KEY } from "./constants.js";
 import { createDesktopIcons } from "./desktop-icons.js";
-import { createDesktopFolders } from "./desktopfolders.js";
 import { loadSavedApps } from "./storage.js";
 import { listFiles, listNotes, getFileById, readNoteText, readFileBlob, saveNote, downloadFile, listDesktopTags, addDesktopTag } from "./filesystem.js";
 import { animateWindowCloseMatrix, animateWindowOpenMatrix } from "./window-close-fx.js";
@@ -10,7 +9,6 @@ import { animateWindowCloseMatrix, animateWindowOpenMatrix } from "./window-clos
 export function createWindowManager({ desktop, iconLayer, templates, openWindowsList, saveDialog, appsMenu, appsMap, theme }){
   const { finderTpl, appTpl, browserTpl, notesTpl, themesTpl } = templates;
   const DesktopIcons = createDesktopIcons({ iconLayer, desktop });
-  const DesktopFolders = createDesktopFolders({ desktop, iconLayer });
   const downloadModal = document.getElementById("downloadModal");
   const downloadDesc = document.getElementById("downloadDesc");
   const downloadNo = document.getElementById("downloadNo");
@@ -252,21 +250,7 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
       });
     }
 
-    const transformed = DesktopFolders.transform(order, metaById)
-    DesktopIcons.render(transformed.order, transformed.metaById, (id, iconEl) => {
-      const transformedMeta = transformed.metaById.get(id)
-      if (transformedMeta?.kind === "folder") {
-        DesktopFolders.toggle(transformedMeta, iconEl, (childId) => {
-          const childMeta = metaById.get(childId)
-          if (childMeta?.fileId) {
-            openFileById(childMeta.fileId)
-            return
-          }
-          restore(childId)
-          focus(childId)
-        })
-        return
-      }
+    DesktopIcons.render(order, metaById, (id) => {
       const meta = metaById.get(id);
       if (meta?.fileId) {
         openFileById(meta.fileId);
