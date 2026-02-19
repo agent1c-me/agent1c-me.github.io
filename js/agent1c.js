@@ -3555,7 +3555,6 @@ function openShellRelayWindow(){
 
 function applyOnboardingWindowState(){
   restoreWindow(wins.openai)
-  restoreWindow(wins.events)
   focusWindow(wins.openai)
   minimizeWindow(wins.chat)
   minimizeWindow(wins.config)
@@ -3571,7 +3570,6 @@ function revealPostOpenAiWindows(){
   restoreWindow(wins.chat)
   restoreWindow(wins.config)
   restoreWindow(wins.telegram)
-  restoreWindow(wins.events)
   minimizeWindow(wins.shellrelay)
   minimizeWindow(wins.soul)
   minimizeWindow(wins.tools)
@@ -5116,7 +5114,7 @@ async function createWorkspace({ showUnlock, onboarding }) {
   const shouldSpawnPanel = (panelId) => {
     if (!savedPanelIds) return true
     if (panelId === "shellrelay") return true
-    if (onboarding && (panelId === "openai" || panelId === "events")) return true
+    if (onboarding && panelId === "openai") return true
     return savedPanelIds.has(panelId)
   }
 
