@@ -94,7 +94,7 @@ export function createDesktopFolders({ desktop } = {}){
       height: window.innerHeight,
     }
     const gap = 8
-    const width = Math.max(200, Math.min(300, Math.round(desktopRect.width * 0.44)))
+    const width = Math.max(232, Math.min(340, Math.round(desktopRect.width * 0.5)))
     overlayEl.style.width = `${width}px`
     overlayEl.style.display = "block"
     const ownRect = overlayEl.getBoundingClientRect()

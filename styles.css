@@ -553,7 +553,8 @@
     .desktop-folder-overlay{
       position: fixed;
       z-index: 12020;
-      min-width: 200px;
+      min-width: 232px;
+      min-height: 160px;
       max-width: min(320px, 58vw);
       border: 1px solid var(--line);
       border-radius: 10px;
