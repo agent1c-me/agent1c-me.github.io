@@ -1,7 +1,6 @@
 import { toEmbedUrl } from "./embedify.js";
 import { NOTES_KEY } from "./constants.js";
 import { createDesktopIcons } from "./desktop-icons.js";
-import { createDesktopFolders } from "./desktopfolders.js";
 import { loadSavedApps } from "./storage.js";
 import { listFiles, listNotes, getFileById, readNoteText, readFileBlob, saveNote, downloadFile, listDesktopTags, addDesktopTag } from "./filesystem.js";
 import { animateWindowCloseMatrix, animateWindowOpenMatrix } from "./window-close-fx.js";
@@ -10,7 +9,6 @@ import { animateWindowCloseMatrix, animateWindowOpenMatrix } from "./window-clos
 export function createWindowManager({ desktop, iconLayer, templates, openWindowsList, saveDialog, appsMenu, appsMap, theme }){
   const { finderTpl, appTpl, browserTpl, notesTpl, themesTpl } = templates;
   const DesktopIcons = createDesktopIcons({ iconLayer, desktop });
-  const DesktopFolders = createDesktopFolders({ desktop });
   const downloadModal = document.getElementById("downloadModal");
   const downloadDesc = document.getElementById("downloadDesc");
   const downloadNo = document.getElementById("downloadNo");
@@ -229,7 +227,7 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     const order = Array.from(state.entries())
       .sort((a,b) => a[1].createdAt - b[1].createdAt)
       .map(([id, st]) => {
-        metaById.set(id, { title: st.title, kind: st.kind, panelId: st.panelId || "" });
+        metaById.set(id, { title: st.title, kind: st.kind });
         return id;
       });
 
@@ -252,21 +250,7 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
       });
     }
 
-    const transformed = DesktopFolders.transform(order, metaById);
-    DesktopIcons.render(transformed.order, transformed.metaById, (id, iconEl) => {
-      const folded = transformed.metaById.get(id);
-      if (folded?.kind === "folder") {
-        DesktopFolders.toggle(folded, iconEl, (childId) => {
-          const childMeta = metaById.get(childId);
-          if (childMeta?.fileId) {
-            openFileById(childMeta.fileId);
-            return;
-          }
-          restore(childId);
-          focus(childId);
-        });
-        return;
-      }
+    DesktopIcons.render(order, metaById, (id) => {
       const meta = metaById.get(id);
       if (meta?.fileId) {
         openFileById(meta.fileId);
