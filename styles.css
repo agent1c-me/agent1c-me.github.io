@@ -576,9 +576,10 @@
       overflow: auto;
     }
     .desktop-folder-icons{
-      grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+      grid-template-columns: repeat(2, minmax(86px, 1fr));
       align-items: start;
       gap: 6px;
+      min-height: 136px;
     }
     .desktop-folder-icon{
       width: 72px;
