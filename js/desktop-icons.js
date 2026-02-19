@@ -39,6 +39,7 @@ export function createDesktopIcons({ iconLayer, desktop }){
   }
 
   function glyphForKind(kind, meta){
+    if (kind === "folder") return String(meta?.glyph || "🗂️");
     if (kind === "files") return "📂";
     if (kind === "notes") return "📑";
     if (kind === "note") return "📝";
@@ -93,7 +94,7 @@ export function createDesktopIcons({ iconLayer, desktop }){
       label.appendChild(l2);
       el.appendChild(label);
 
-      el.addEventListener("click", (e) => { e.stopPropagation(); onClick?.(id); });
+      el.addEventListener("click", (e) => { e.stopPropagation(); onClick?.(id, el); });
 
       iconLayer.appendChild(el);
       icons.set(id, el);
