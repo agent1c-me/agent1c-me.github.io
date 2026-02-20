@@ -125,6 +125,10 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
 
   function updateIdleStatus(){
     if (!enabled) return;
+    if (pttActive) {
+      setStatus("listening", "Push-to-talk listening...");
+      return;
+    }
     if (mode === "free") {
       setStatus("idle", "Always listening (no wake-word)");
     } else if (isFollowupActive()) {
@@ -313,7 +317,7 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
         const txt = normalizeSpaces(result?.[0]?.transcript || "");
         if (!txt) continue;
         if (!captureActive) {
-          const bypassWake = mode === "free";
+          const bypassWake = mode === "free" || pttActive;
           const afterWake = extractAfterWake(txt);
           if (!bypassWake && afterWake === null && !isFollowupActive()) {
             showHeardHint(txt);
@@ -436,8 +440,10 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
     if (pttActive) return true;
     pttActive = true;
     pttPrevMode = mode;
-    if (mode !== "free" || !enabled) {
-      setMode("free", { persist: false });
+    if (!enabled) {
+      setMode("wake", { persist: false });
+    } else {
+      startRecognition();
     }
     setStatus("listening", "Push-to-talk listening...");
     return true;
