@@ -550,6 +550,88 @@
       white-space: nowrap;
     }
 
+    .desk-folder-overlay{
+      position: absolute;
+      min-width: 168px;
+      max-width: 248px;
+      min-height: 112px;
+      max-height: 184px;
+      z-index: 15;
+      border: 1px solid color-mix(in srgb, var(--os-black) 28%, transparent);
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--os-face) 96%, #fff 4%);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+      padding: 8px;
+      box-sizing: border-box;
+      pointer-events: auto;
+      overflow: auto;
+    }
+
+    .desk-folder-title{
+      font-weight: 700;
+      font-size: calc(var(--font-size) - 1px);
+      margin-bottom: 6px;
+    }
+
+    .desk-folder-grid{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .desk-folder-empty{
+      font-size: calc(var(--font-size) - 1px);
+      opacity: 0.72;
+      grid-column: 1 / -1;
+      padding: 6px 2px;
+    }
+
+    .desk-folder-item{
+      display: grid;
+      grid-template-columns: 18px 1fr;
+      align-items: center;
+      gap: 6px;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      text-align: left;
+      font: inherit;
+      border-radius: 6px;
+      padding: 4px 5px;
+      cursor: default;
+      min-width: 0;
+    }
+
+    .desk-folder-item:hover{
+      background: color-mix(in srgb, var(--os-white) 72%, transparent);
+    }
+
+    .desk-folder-item-glyph{
+      width: 16px;
+      height: 16px;
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+      line-height: 1;
+    }
+
+    .desk-folder-item-glyph img{
+      width: 16px;
+      height: 16px;
+      object-fit: contain;
+      image-rendering: auto;
+      pointer-events: none;
+      filter: drop-shadow(0 1px 1px rgba(0,0,0,0.2));
+    }
+
+    .desk-folder-item-label{
+      font-size: calc(var(--font-size) - 1px);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+
     /* ===== Windows ===== */
     .window{
       position: absolute;
