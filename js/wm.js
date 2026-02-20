@@ -935,8 +935,8 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     const emptyRows = () => ([]);
 
     const sections = {
+      "Agentic Root": docsRows,
       Applications: appRows,
-      "Encrypted Files": docsRows,
       "System Folder": systemRows,
       Desktop: desktopRows,
     };
@@ -947,7 +947,7 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
       if (status) status.textContent = `${rows.length} item${rows.length === 1 ? "" : "s"}`;
     };
 
-    const active = nav.querySelector(".navitem.active")?.textContent?.trim() || "Applications";
+    const active = nav.querySelector(".navitem.active")?.textContent?.trim() || "Agentic Root";
     renderSection(active);
 
     nav.addEventListener("click", (e) => {
@@ -1051,7 +1051,7 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
 
     const onDocsChanged = () => {
       const activeLabel = nav.querySelector(".navitem.active")?.textContent?.trim() || "";
-      if (/encrypted files/i.test(activeLabel) || /desktop/i.test(activeLabel)) renderSection(activeLabel);
+      if (/agentic root/i.test(activeLabel) || /encrypted files/i.test(activeLabel) || /desktop/i.test(activeLabel)) renderSection(activeLabel);
     };
     window.addEventListener("hedgey:docs-changed", onDocsChanged);
 
@@ -1713,7 +1713,7 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     const st = state.get(filesWinId);
     if (!st || !st.win) return false;
     if (typeof st.win._setFinderSection === "function") {
-      st.win._setFinderSection("Encrypted Files");
+      st.win._setFinderSection("Agentic Root");
       focus(filesWinId);
       return true;
     }
