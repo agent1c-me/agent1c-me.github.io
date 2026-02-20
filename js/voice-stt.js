@@ -61,6 +61,8 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
   let currentError = "";
   let wakeCapturePrimed = false;
   let audioCtx = null;
+  let pttActive = false;
+  let pttPrevMode = "off";
 
   function emitState(){
     const detail = {
@@ -403,7 +405,7 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
     restarting = false;
   }
 
-  function setMode(nextMode){
+  function setMode(nextMode, options = {}){
     if (!supported) {
       mode = "off";
       enabled = false;
@@ -414,7 +416,7 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
     const next = String(nextMode || "").toLowerCase();
     mode = next === "free" ? "free" : (next === "wake" ? "wake" : "off");
     enabled = mode !== "off";
-    persistMode();
+    if (options.persist !== false) persistMode();
     if (enabled) {
       setStatus("starting", "Starting microphone...");
       startRecognition();
@@ -423,6 +425,36 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
       setStatus("off", "", "");
     }
     updateButton();
+  }
+
+  function startPushToTalk(){
+    if (!supported) return false;
+    if (!consented) {
+      openConsentModal();
+      return false;
+    }
+    if (pttActive) return true;
+    pttActive = true;
+    pttPrevMode = mode;
+    if (mode !== "free" || !enabled) {
+      setMode("free", { persist: false });
+    }
+    setStatus("listening", "Push-to-talk listening...");
+    return true;
+  }
+
+  function stopPushToTalk(){
+    if (!pttActive) return false;
+    if (captureActive) finishCapture();
+    const restoreMode = pttPrevMode || "off";
+    pttActive = false;
+    pttPrevMode = "off";
+    if (restoreMode !== mode) {
+      setMode(restoreMode, { persist: false });
+    } else if (enabled) {
+      updateIdleStatus();
+    }
+    return true;
   }
 
   function onButtonClick(){
@@ -479,6 +511,8 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
     init,
     setEnabled: (next) => setMode(next ? "wake" : "off"),
     setMode,
+    startPushToTalk,
+    stopPushToTalk,
     getState: () => ({
       enabled: !!enabled,
       mode,

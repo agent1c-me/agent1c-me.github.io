@@ -2391,6 +2391,22 @@ function updateClippyVoiceBadge(){
   clippyUi.voice.textContent = voiceStatusLabel()
 }
 
+function getVoiceController(){
+  return window.__agent1cVoiceController || null
+}
+
+function startClippyPushToTalk(){
+  const ctl = getVoiceController()
+  if (!ctl || typeof ctl.startPushToTalk !== "function") return false
+  return ctl.startPushToTalk() === true
+}
+
+function stopClippyPushToTalk(){
+  const ctl = getVoiceController()
+  if (!ctl || typeof ctl.stopPushToTalk !== "function") return false
+  return ctl.stopPushToTalk() === true
+}
+
 function rectOverlapArea(a, b){
   const x = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left))
   const y = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top))
@@ -2596,15 +2612,13 @@ function ensureClippyAssistant(){
   const chips = root.querySelector(".clippy-chips")
   const form = root.querySelector(".clippy-form")
   const input = root.querySelector(".clippy-input")
-  const menu = document.createElement("div")
-  menu.className = "clippy-menu clippy-hidden"
-  menu.innerHTML = `<button class="clippy-menu-item" type="button">Close</button>`
-  desktop.appendChild(menu)
-  const closeBtn = menu.querySelector(".clippy-menu-item")
   let alphaCanvas = null
   let alphaData = null
   let dragging = false
   let moved = false
+  let holdTimer = null
+  let holdTriggered = false
+  let holdPointerId = null
   let startX = 0
   let startY = 0
   let baseLeft = 0
@@ -2671,6 +2685,29 @@ function ensureClippyAssistant(){
     root.style.top = `${Math.round(next.top)}px`
     positionClippyBubble()
   }
+  function clearHoldTimer(){
+    if (holdTimer) clearTimeout(holdTimer)
+    holdTimer = null
+  }
+  function beginHoldTimer(pointerId){
+    clearHoldTimer()
+    holdPointerId = pointerId
+    holdTriggered = false
+    holdTimer = setTimeout(() => {
+      holdTimer = null
+      if (!dragging || holdPointerId !== pointerId) return
+      holdTriggered = startClippyPushToTalk()
+      if (holdTriggered) setStatus("Push-to-talk listening...")
+    }, 420)
+  }
+  function endHoldPushToTalk(){
+    clearHoldTimer()
+    holdPointerId = null
+    if (!holdTriggered) return false
+    holdTriggered = false
+    stopClippyPushToTalk()
+    return true
+  }
   body?.addEventListener("pointerdown", (e) => {
     if (!isOpaqueBodyPixelAt(e.clientX, e.clientY)) {
       e.preventDefault()
@@ -2688,12 +2725,20 @@ function ensureClippyAssistant(){
     baseLeft = parseFloat(root.style.left) || 0
     baseTop = parseFloat(root.style.top) || 0
     body.setPointerCapture(e.pointerId)
+    beginHoldTimer(e.pointerId)
   })
   body?.addEventListener("pointermove", (e) => {
     if (!dragging) return
     const dx = e.clientX - startX
     const dy = e.clientY - startY
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      moved = true
+      clearHoldTimer()
+      if (holdTriggered) {
+        holdTriggered = false
+        stopClippyPushToTalk()
+      }
+    }
     baseLeft += dx
     baseTop += dy
     startX = e.clientX
@@ -2706,7 +2751,8 @@ function ensureClippyAssistant(){
   }
   body?.addEventListener("pointerup", (e) => {
     if (!dragging) return
-    if (!moved) {
+    const usedPushToTalk = endHoldPushToTalk()
+    if (!moved && !usedPushToTalk) {
       if (bubble?.classList.contains("clippy-hidden")) {
         const variant = isOnboardingGuideActive() ? "compact" : "full"
         showClippyBubble({ variant, snapNoOverlap: true, preferAbove: true })
@@ -2718,22 +2764,15 @@ function ensureClippyAssistant(){
     endDrag()
     body.releasePointerCapture?.(e.pointerId)
   })
-  body?.addEventListener("pointercancel", endDrag)
+  body?.addEventListener("pointercancel", () => {
+    endHoldPushToTalk()
+    endDrag()
+  })
   body?.addEventListener("dragstart", (e) => {
     e.preventDefault()
   })
   body?.addEventListener("contextmenu", (e) => {
-    if (!isOpaqueBodyPixelAt(e.clientX, e.clientY)) return
     e.preventDefault()
-    const dr = desktop.getBoundingClientRect()
-    menu.style.left = `${Math.max(0, e.clientX - dr.left)}px`
-    menu.style.top = `${Math.max(0, e.clientY - dr.top)}px`
-    menu.classList.remove("clippy-hidden")
-  })
-  closeBtn?.addEventListener("click", (e) => {
-    e.preventDefault()
-    menu.classList.add("clippy-hidden")
-    setClippyMode(false)
   })
   form?.addEventListener("submit", async (e) => {
     e.preventDefault()
@@ -2788,14 +2827,10 @@ function ensureClippyAssistant(){
     markClippyActivity()
     onboardingHedgey?.onLinkClick?.(target)
   })
-  clippyUi = { root, body, bubble, log, chips, form, input, menu, voice }
+  clippyUi = { root, body, bubble, log, chips, form, input, voice }
   positionClippyAtBottom()
   document.addEventListener("pointerdown", (e) => {
     if (!clippyMode) return
-    if (clippyUi?.menu && !clippyUi.menu.classList.contains("clippy-hidden")) {
-      if (!clippyUi.menu.contains(e.target)) clippyUi.menu.classList.add("clippy-hidden")
-      else return
-    }
     if (!clippyUi?.bubble || clippyUi.bubble.classList.contains("clippy-hidden")) return
     if (clippyUi.root.contains(e.target)) return
     hideClippyBubble()
@@ -2829,7 +2864,6 @@ function setClippyMode(next){
   const wasHidden = ui.root.classList.contains("clippy-hidden")
   clippyMode = !!next
   ui.root.classList.toggle("clippy-hidden", !clippyMode)
-  if (ui.menu) ui.menu.classList.add("clippy-hidden")
   if (clippyMode) {
     if (wasHidden) positionClippyAtBottom()
     if (wasHidden) animateHitomiWispsShow(ui.root)

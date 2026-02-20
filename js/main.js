@@ -89,6 +89,7 @@ async function boot(){
     btnNo: document.getElementById("voiceNo"),
   });
   voice.init();
+  window.__agent1cVoiceController = voice;
 
   appsMenu.renderAppsMenu();
   appsMenu.renderSavedApps();
