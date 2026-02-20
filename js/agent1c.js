@@ -293,6 +293,7 @@ let eventToastExpanded = false
 let eventToastDismissedThroughId = 0
 const thinkingThreadIds = new Set()
 const HITOMI_SHORTCUT_ID = "agent1c:shortcut:hitomi"
+const PERSONA_FOLDER_ID = "agent1c:folder:persona"
 
 const CORE_AGENT_PANEL_IDS = ["chat", "openai", "telegram", "config", "shellrelay", "soul", "tools", "heartbeat", "events"]
 const pendingDocSaves = new Set()
@@ -2177,6 +2178,20 @@ function ensureHitomiDesktopIcon(){
 
 function removeHitomiDesktopIcon(){
   wmRef?.unregisterDesktopShortcut?.(HITOMI_SHORTCUT_ID)
+}
+
+function ensurePersonaDesktopFolder(){
+  if (!wmRef?.registerDesktopFolder) return null
+  return wmRef.registerDesktopFolder(PERSONA_FOLDER_ID, {
+    title: "Persona",
+    glyph: "🗂️",
+    order: 9950,
+    items: [
+      { panelId: "soul" },
+      { panelId: "tools" },
+      { panelId: "heartbeat" },
+    ],
+  })
 }
 
 async function hasAnyAiProviderKey(){
@@ -5050,6 +5065,7 @@ async function createWorkspace({ showUnlock, onboarding }) {
   renderChat()
   renderEvents()
   refreshUi()
+  ensurePersonaDesktopFolder()
   await refreshKnownFilesystemFiles()
 
   if (!savedPanelIds && wins.events?.id) {

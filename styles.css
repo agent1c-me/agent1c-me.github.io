@@ -549,6 +549,62 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .desk-folder-overlay{
+      position: absolute;
+      min-width: 214px;
+      max-width: 280px;
+      min-height: 160px;
+      max-height: 280px;
+      border: 1px solid color-mix(in srgb, var(--os-black) 28%, transparent);
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--os-face) 96%, #fff 4%);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+      padding: 8px;
+      box-sizing: border-box;
+      pointer-events: auto;
+      overflow: auto;
+    }
+    .desk-folder-title{
+      font-weight: 700;
+      font-size: calc(var(--font-size) - 1px);
+      margin-bottom: 6px;
+    }
+    .desk-folder-grid{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .desk-folder-empty{
+      font-size: calc(var(--font-size) - 1px);
+      opacity: 0.72;
+      grid-column: 1 / -1;
+      padding: 8px 4px;
+    }
+    .desk-folder-item{
+      display: grid;
+      justify-items: center;
+      align-items: start;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      text-align: center;
+      font: inherit;
+      border-radius: 8px;
+      padding: 2px;
+      min-width: 0;
+      cursor: default;
+    }
+    .desk-folder-item:hover{
+      background: color-mix(in srgb, var(--os-white) 72%, transparent);
+    }
+    .desk-folder-mini-icon{
+      position: static;
+      width: calc(var(--icon-cell-w) * 0.85);
+      height: calc(var(--icon-cell-h) * 0.85);
+      transform: scale(0.92);
+      transform-origin: top center;
+      pointer-events: none;
+    }
 
     /* ===== Windows ===== */
     .window{

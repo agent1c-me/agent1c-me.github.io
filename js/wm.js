@@ -28,6 +28,9 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
   let pendingPanelLayouts = new Map();
   const desktopShortcuts = new Map();
   let desktopShortcutSeq = 1;
+  const desktopFolders = new Map();
+  let desktopFolderSeq = 1;
+  let folderOverlay = null;
 
   function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
   function deskRect(){ return desktop.getBoundingClientRect(); }
@@ -120,6 +123,21 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     loadedLayoutSnapshot = loadedLayoutSnapshot || readLayoutSnapshot() || { windows: [], panels: {} };
     const panels = loadedLayoutSnapshot.panels || {};
     pendingPanelLayouts = new Map(Object.entries(panels));
+  }
+  function closeDesktopFolderOverlay(){
+    if (!folderOverlay) return;
+    folderOverlay.remove();
+    folderOverlay = null;
+  }
+  function ensureFolderOverlayCloser(){
+    if (document.documentElement.dataset.folderOverlayCloserReady === "1") return;
+    document.documentElement.dataset.folderOverlayCloserReady = "1";
+    document.addEventListener("pointerdown", (event) => {
+      if (!folderOverlay) return;
+      if (folderOverlay.contains(event.target)) return;
+      closeDesktopFolderOverlay();
+    }, true);
+    window.addEventListener("resize", closeDesktopFolderOverlay);
   }
   function restoreNonAgentWindowsFromSnapshot(){
     loadedLayoutSnapshot = loadedLayoutSnapshot || readLayoutSnapshot();
@@ -225,6 +243,7 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
   }
 
   async function refreshIcons(){
+    ensureFolderOverlayCloser();
     const metaById = new Map();
     const order = Array.from(state.entries())
       .sort((a,b) => a[1].createdAt - b[1].createdAt)
@@ -270,8 +289,149 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
       order.push(id);
     });
 
-    DesktopIcons.render(order, metaById, (id) => {
+    const panelIdToWindowId = new Map();
+    for (const [winId, st] of state.entries()) {
+      if (!st?.panelId) continue;
+      panelIdToWindowId.set(String(st.panelId), winId);
+    }
+    const hiddenIconIds = new Set();
+    const folderEntries = Array.from(desktopFolders.entries())
+      .sort((a, b) => {
+        const ao = Number(a[1]?.order || 0);
+        const bo = Number(b[1]?.order || 0);
+        if (ao !== bo) return ao - bo;
+        return String(a[1]?.title || a[0]).localeCompare(String(b[1]?.title || b[0]));
+      });
+    const folderMembersById = new Map();
+    folderEntries.forEach(([folderId, folder]) => {
+      const members = [];
+      const specs = Array.isArray(folder?.items) ? folder.items : [];
+      specs.forEach((specRaw) => {
+        const spec = specRaw || {};
+        let iconId = "";
+        let iconMeta = null;
+        let open = null;
+        if (spec.panelId) {
+          const winId = panelIdToWindowId.get(String(spec.panelId)) || "";
+          if (winId) {
+            iconId = winId;
+            iconMeta = metaById.get(iconId) || null;
+            hiddenIconIds.add(iconId);
+            open = () => {
+              restore(iconId);
+              focus(iconId);
+            };
+          } else if (typeof spec.onClick === "function") {
+            open = spec.onClick;
+          }
+        } else if (spec.fileId) {
+          iconId = `file:${String(spec.fileId)}`;
+          iconMeta = metaById.get(iconId) || null;
+          if (iconMeta) hiddenIconIds.add(iconId);
+          open = () => openFileById(spec.fileId);
+        } else if (spec.shortcutId) {
+          iconId = String(spec.shortcutId);
+          iconMeta = metaById.get(iconId) || null;
+          if (iconMeta) hiddenIconIds.add(iconId);
+          open = () => {
+            const shortcut = desktopShortcuts.get(iconId);
+            shortcut?.onClick?.({ id: iconId, meta: iconMeta || {} });
+          };
+        } else if (typeof spec.onClick === "function") {
+          open = spec.onClick;
+        }
+        const title = String(spec.title || iconMeta?.title || spec.panelId || "Item");
+        if (!title || typeof open !== "function") return;
+        members.push({
+          title,
+          kind: String(spec.kind || iconMeta?.kind || "app"),
+          glyph: String(spec.glyph || iconMeta?.glyph || ""),
+          iconImage: String(spec.iconImage || iconMeta?.iconImage || ""),
+          open,
+        });
+      });
+      folderMembersById.set(folderId, members);
+    });
+
+    const filteredOrder = order.filter((id) => !hiddenIconIds.has(id));
+    hiddenIconIds.forEach((id) => metaById.delete(id));
+    folderEntries.forEach(([folderId, folder]) => {
+      const iconId = `folder:${folderId}`;
+      metaById.set(iconId, {
+        title: String(folder?.title || folderId),
+        kind: "files",
+        glyph: String(folder?.glyph || "📁"),
+        iconImage: String(folder?.iconImage || ""),
+        _desktopFolder: true,
+        _folderId: folderId,
+      });
+      filteredOrder.push(iconId);
+    });
+
+    DesktopIcons.render(filteredOrder, metaById, (id) => {
       const meta = metaById.get(id);
+      if (meta?._desktopFolder) {
+        const folderId = String(meta._folderId || "");
+        const members = folderMembersById.get(folderId) || [];
+        const iconEl = iconLayer?.querySelector(`.desk-icon[data-win-id="${id}"]`);
+        if (!iconEl) return;
+        if (folderOverlay && folderOverlay.dataset.folderId === folderId) {
+          closeDesktopFolderOverlay();
+          return;
+        }
+        closeDesktopFolderOverlay();
+        const overlay = document.createElement("div");
+        overlay.className = "desk-folder-overlay";
+        overlay.dataset.folderId = folderId;
+        overlay.style.zIndex = String(Math.max(zTop + 2000, 5000));
+        const titleEl = document.createElement("div");
+        titleEl.className = "desk-folder-title";
+        titleEl.textContent = String(meta.title || "Folder");
+        overlay.appendChild(titleEl);
+        const grid = document.createElement("div");
+        grid.className = "desk-folder-grid";
+        if (!members.length) {
+          const empty = document.createElement("div");
+          empty.className = "desk-folder-empty";
+          empty.textContent = "No items.";
+          grid.appendChild(empty);
+        } else {
+          members.forEach((member) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "desk-folder-item";
+            const icon = DesktopIcons.buildIconElement(member.title, member.kind, {
+              title: member.title,
+              kind: member.kind,
+              glyph: member.glyph,
+              iconImage: member.iconImage,
+            });
+            icon.classList.add("desk-folder-mini-icon");
+            btn.appendChild(icon);
+            btn.addEventListener("click", (event) => {
+              event.stopPropagation();
+              closeDesktopFolderOverlay();
+              member.open();
+            });
+            grid.appendChild(btn);
+          });
+        }
+        overlay.appendChild(grid);
+        desktop.appendChild(overlay);
+        folderOverlay = overlay;
+        const deskRectNow = desktop.getBoundingClientRect();
+        const iconRect = iconEl.getBoundingClientRect();
+        const overlayRect = overlay.getBoundingClientRect();
+        const minLeft = 8;
+        const maxLeft = Math.max(minLeft, desktop.clientWidth - overlayRect.width - 8);
+        const minTop = 8;
+        const maxTop = Math.max(minTop, desktop.clientHeight - overlayRect.height - 8);
+        const left = Math.max(minLeft, Math.min(maxLeft, iconRect.left - deskRectNow.left));
+        const top = Math.max(minTop, Math.min(maxTop, iconRect.top - deskRectNow.top - overlayRect.height - 10));
+        overlay.style.left = `${left}px`;
+        overlay.style.top = `${top}px`;
+        return;
+      }
       if (meta?._desktopShortcut) {
         const shortcut = desktopShortcuts.get(id);
         shortcut?.onClick?.({ id, meta });
@@ -1928,6 +2088,30 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     if (removed) refreshIcons();
     return removed;
   }
+  function registerDesktopFolder(id, folder){
+    const key = String(id || "").trim();
+    if (!key) return null;
+    const entry = {
+      title: String(folder?.title || key),
+      glyph: String(folder?.glyph || "📁"),
+      iconImage: String(folder?.iconImage || ""),
+      items: Array.isArray(folder?.items) ? folder.items.slice() : [],
+      order: Number.isFinite(Number(folder?.order)) ? Number(folder.order) : desktopFolderSeq++,
+    };
+    desktopFolders.set(key, entry);
+    refreshIcons();
+    return key;
+  }
+  function unregisterDesktopFolder(id){
+    const key = String(id || "").trim();
+    if (!key) return false;
+    const removed = desktopFolders.delete(key);
+    if (removed) {
+      if (folderOverlay?.dataset?.folderId === key) closeDesktopFolderOverlay();
+      refreshIcons();
+    }
+    return removed;
+  }
 
   return {
     createFilesWindow,
@@ -1952,6 +2136,8 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     openUrlInBrowser,
     registerDesktopShortcut,
     unregisterDesktopShortcut,
+    registerDesktopFolder,
+    unregisterDesktopFolder,
     restoreLayoutSession: restoreNonAgentWindowsFromSnapshot,
   };
 }

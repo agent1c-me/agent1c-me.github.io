@@ -75,30 +75,19 @@ export function createDesktopIcons({ iconLayer, desktop }){
   function ensureIcon(id, title, kind, meta, onClick){
     let el = icons.get(id);
     if (!el){
-      el = document.createElement("div");
-      el.className = "desk-icon";
+      el = buildIconElement(title, kind, meta);
       el.dataset.winId = id;
-
-      const glyph = document.createElement("div");
-      glyph.className = "glyph";
-      el.appendChild(glyph);
-
-      const label = document.createElement("div");
-      label.className = "label";
-      const l1 = document.createElement("div");
-      l1.className = "line";
-      const l2 = document.createElement("div");
-      l2.className = "line";
-      label.appendChild(l1);
-      label.appendChild(l2);
-      el.appendChild(label);
-
       el.addEventListener("click", (e) => { e.stopPropagation(); onClick?.(id); });
 
       iconLayer.appendChild(el);
       icons.set(id, el);
     }
 
+    applyIconFace(el, title, kind, meta);
+    return el;
+  }
+
+  function applyIconFace(el, title, kind, meta){
     const glyphEl = el.querySelector(".glyph");
     glyphEl.innerHTML = "";
     if (meta?.iconImage) {
@@ -113,7 +102,24 @@ export function createDesktopIcons({ iconLayer, desktop }){
     const lines = el.querySelectorAll(".line");
     lines[0].textContent = a;
     lines[1].textContent = b;
+  }
 
+  function buildIconElement(title, kind, meta){
+    const el = document.createElement("div");
+    el.className = "desk-icon";
+    const glyph = document.createElement("div");
+    glyph.className = "glyph";
+    el.appendChild(glyph);
+    const label = document.createElement("div");
+    label.className = "label";
+    const l1 = document.createElement("div");
+    l1.className = "line";
+    const l2 = document.createElement("div");
+    l2.className = "line";
+    label.appendChild(l1);
+    label.appendChild(l2);
+    el.appendChild(label);
+    applyIconFace(el, title, kind, meta);
     return el;
   }
 
@@ -140,5 +146,5 @@ export function createDesktopIcons({ iconLayer, desktop }){
     }
   }
 
-  return { render, removeIcon };
+  return { render, removeIcon, buildIconElement };
 }
