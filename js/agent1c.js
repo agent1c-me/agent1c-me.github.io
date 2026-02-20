@@ -2187,9 +2187,9 @@ function ensurePersonaDesktopFolder(){
     glyph: "🗂️",
     order: 9950,
     items: [
-      { panelId: "soul" },
-      { panelId: "tools" },
-      { panelId: "heartbeat" },
+      { panelId: "soul", glyph: "👻" },
+      { panelId: "tools", glyph: "🧰" },
+      { panelId: "heartbeat", glyph: "❤️" },
     ],
   })
 }
