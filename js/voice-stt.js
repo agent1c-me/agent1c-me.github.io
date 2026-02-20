@@ -47,6 +47,7 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
   let captureActive = false;
   let captureFinalParts = [];
   let captureInterim = "";
+  let captureBestText = "";
   let silenceTimer = null;
   let idleCaptureTimer = null;
   let networkErrorCount = 0;
@@ -174,6 +175,7 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
     captureActive = false;
     captureFinalParts = [];
     captureInterim = "";
+    captureBestText = "";
     wakeCapturePrimed = false;
   }
 
@@ -228,6 +230,15 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
     return normalizeSpaces([captureFinalParts.join(" "), captureInterim].join(" "));
   }
 
+  function rememberBestCaptureText(){
+    const current = composeCaptureText();
+    if (!current) return current;
+    if (!captureBestText || current.length >= captureBestText.length) {
+      captureBestText = current;
+    }
+    return current;
+  }
+
   function dispatchVoiceCommand(text){
     const clean = normalizeSpaces(text);
     if (!clean) return;
@@ -241,7 +252,7 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
   }
 
   function finishCapture(){
-    const command = composeCaptureText();
+    const command = normalizeSpaces(captureBestText || composeCaptureText());
     resetCapture();
     if (command) {
       setStatus("processing", command);
@@ -340,7 +351,7 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
           } else {
             restartIdleCaptureTimer(wakeCapturePrimed ? FIRST_WAKE_IDLE_MS : DEFAULT_IDLE_CAPTURE_MS);
           }
-          setStatus("listening", composeCaptureText() || "Listening...");
+          setStatus("listening", rememberBestCaptureText() || "Listening...");
           continue;
         }
 
@@ -353,7 +364,7 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
           captureInterim = cleaned;
           restartSilenceTimer(wakeCapturePrimed ? FIRST_WAKE_SILENCE_MS : DEFAULT_SILENCE_MS_INTERIM);
         }
-        setStatus("listening", composeCaptureText() || "Listening...");
+        setStatus("listening", rememberBestCaptureText() || "Listening...");
       }
     };
     recognition.onend = () => {
