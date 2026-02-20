@@ -7,6 +7,7 @@ const FIRST_WAKE_SILENCE_MS = 2200;
 const DEFAULT_IDLE_CAPTURE_MS = 2600;
 const DEFAULT_SILENCE_MS_FINAL = 1200;
 const DEFAULT_SILENCE_MS_INTERIM = 1400;
+const PTT_RELEASE_GRACE_MS = 250;
 
 function normalizeSpaces(text){
   return String(text || "").replace(/\s+/g, " ").trim();
@@ -64,6 +65,7 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
   let audioCtx = null;
   let pttActive = false;
   let pttPrevMode = "off";
+  let pttReleaseTimer = null;
 
   function emitState(){
     const detail = {
@@ -154,6 +156,11 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
     followupUntil = 0;
     if (followupTimer) clearTimeout(followupTimer);
     followupTimer = null;
+  }
+
+  function clearPttReleaseTimer(){
+    if (pttReleaseTimer) clearTimeout(pttReleaseTimer);
+    pttReleaseTimer = null;
   }
 
   function showHeardHint(text){
@@ -462,15 +469,19 @@ export function createVoiceSttController({ button, modal, btnYes, btnNo } = {}){
 
   function stopPushToTalk(){
     if (!pttActive) return false;
-    if (captureActive) finishCapture();
-    const restoreMode = pttPrevMode || "off";
-    pttActive = false;
-    pttPrevMode = "off";
-    if (restoreMode !== mode) {
-      setMode(restoreMode, { persist: false });
-    } else if (enabled) {
-      updateIdleStatus();
-    }
+    clearPttReleaseTimer();
+    pttReleaseTimer = setTimeout(() => {
+      pttReleaseTimer = null;
+      if (captureActive) finishCapture();
+      const restoreMode = pttPrevMode || "off";
+      pttActive = false;
+      pttPrevMode = "off";
+      if (restoreMode !== mode) {
+        setMode(restoreMode, { persist: false });
+      } else if (enabled) {
+        updateIdleStatus();
+      }
+    }, PTT_RELEASE_GRACE_MS);
     return true;
   }
 
