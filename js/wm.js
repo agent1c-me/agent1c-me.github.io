@@ -621,6 +621,10 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     const st = state.get(id);
     if (!st) return;
     const win = st.win;
+    if (win?._finderResizeObserver?.disconnect) {
+      win._finderResizeObserver.disconnect();
+      win._finderResizeObserver = null;
+    }
     if (win && win.isConnected) {
       await animateWindowCloseMatrix(win, { color: "#ff4fb8" });
     }
@@ -1013,7 +1017,7 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
 
     list.addEventListener("contextmenu", (e) => {
       const activeLabel = nav.querySelector(".navitem.active")?.textContent?.trim() || "";
-      if (!/encrypted files/i.test(activeLabel)) return;
+      if (!/agentic root/i.test(activeLabel) && !/encrypted files/i.test(activeLabel)) return;
       const tr = e.target.closest("tr.row");
       if (!tr || !tr.dataset.fileId) return;
       e.preventDefault();
@@ -1024,7 +1028,7 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     let longPressRow = null;
     list.addEventListener("touchstart", (e) => {
       const activeLabel = nav.querySelector(".navitem.active")?.textContent?.trim() || "";
-      if (!/encrypted files/i.test(activeLabel)) return;
+      if (!/agentic root/i.test(activeLabel) && !/encrypted files/i.test(activeLabel)) return;
       const tr = e.target.closest("tr.row");
       if (!tr || !tr.dataset.fileId) return;
       longPressRow = tr;
@@ -1056,6 +1060,18 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     window.addEventListener("hedgey:docs-changed", onDocsChanged);
 
     win._setFinderSection = activateNav;
+    const applyFinderCompactMode = () => {
+      const width = win.clientWidth || parseFloat(win.style.width) || win.offsetWidth || 0;
+      win.classList.toggle("finder-compact", width <= 760);
+      win.classList.toggle("finder-compact-640", width <= 640);
+      win.classList.toggle("finder-compact-480", width <= 480);
+    };
+    applyFinderCompactMode();
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(() => applyFinderCompactMode());
+      ro.observe(win);
+      win._finderResizeObserver = ro;
+    }
   }
 
   function normalizedBrowserUrl(raw){
