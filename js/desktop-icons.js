@@ -99,7 +99,16 @@ export function createDesktopIcons({ iconLayer, desktop }){
       icons.set(id, el);
     }
 
-    el.querySelector(".glyph").textContent = glyphForKind(kind, meta);
+    const glyphEl = el.querySelector(".glyph");
+    glyphEl.innerHTML = "";
+    if (meta?.iconImage) {
+      const img = document.createElement("img");
+      img.src = meta.iconImage;
+      img.alt = `${title || "Icon"} icon`;
+      glyphEl.appendChild(img);
+    } else {
+      glyphEl.textContent = meta?.glyph || glyphForKind(kind, meta);
+    }
     const [a, b] = splitTitleTwoLines(title);
     const lines = el.querySelectorAll(".line");
     lines[0].textContent = a;

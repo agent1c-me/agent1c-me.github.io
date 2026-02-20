@@ -26,6 +26,8 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
   let suppressLayoutSave = false;
   let loadedLayoutSnapshot = null;
   let pendingPanelLayouts = new Map();
+  const desktopShortcuts = new Map();
+  let desktopShortcutSeq = 1;
 
   function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
   function deskRect(){ return desktop.getBoundingClientRect(); }
@@ -250,8 +252,31 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
       });
     }
 
+    const shortcutEntries = Array.from(desktopShortcuts.entries())
+      .sort((a, b) => {
+        const ao = Number(a[1]?.order || 0);
+        const bo = Number(b[1]?.order || 0);
+        if (ao !== bo) return ao - bo;
+        return String(a[1]?.title || a[0]).localeCompare(String(b[1]?.title || b[0]));
+      });
+    shortcutEntries.forEach(([id, shortcut]) => {
+      metaById.set(id, {
+        title: shortcut.title || id,
+        kind: shortcut.kind || "app",
+        glyph: shortcut.glyph || "",
+        iconImage: shortcut.iconImage || "",
+        _desktopShortcut: true,
+      });
+      order.push(id);
+    });
+
     DesktopIcons.render(order, metaById, (id) => {
       const meta = metaById.get(id);
+      if (meta?._desktopShortcut) {
+        const shortcut = desktopShortcuts.get(id);
+        shortcut?.onClick?.({ id, meta });
+        return;
+      }
       if (meta?.fileId) {
         openFileById(meta.fileId);
         return;
@@ -1880,6 +1905,30 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
 
   loadPendingPanelLayouts();
 
+  function registerDesktopShortcut(id, shortcut){
+    const key = String(id || "").trim();
+    if (!key) return null;
+    const entry = {
+      title: String(shortcut?.title || key),
+      kind: String(shortcut?.kind || "app"),
+      glyph: String(shortcut?.glyph || ""),
+      iconImage: String(shortcut?.iconImage || ""),
+      onClick: typeof shortcut?.onClick === "function" ? shortcut.onClick : null,
+      order: Number.isFinite(Number(shortcut?.order)) ? Number(shortcut.order) : desktopShortcutSeq++,
+    };
+    desktopShortcuts.set(key, entry);
+    refreshIcons();
+    return key;
+  }
+
+  function unregisterDesktopShortcut(id){
+    const key = String(id || "").trim();
+    if (!key) return false;
+    const removed = desktopShortcuts.delete(key);
+    if (removed) refreshIcons();
+    return removed;
+  }
+
   return {
     createFilesWindow,
     createBrowserWindow,
@@ -1901,6 +1950,8 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     openAppById,
     listAvailableApps,
     openUrlInBrowser,
+    registerDesktopShortcut,
+    unregisterDesktopShortcut,
     restoreLayoutSession: restoreNonAgentWindowsFromSnapshot,
   };
 }

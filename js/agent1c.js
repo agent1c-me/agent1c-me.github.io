@@ -289,12 +289,10 @@ let clippyActivityWired = false
 let onboardingHedgey = null
 let userName = ""
 let voiceUiState = { enabled: false, supported: true, status: "off", text: "", error: "" }
-let hitomiDesktopIcon = null
-let hitomiIconObserver = null
-let hitomiIconRelayoutQueued = false
 let eventToastExpanded = false
 let eventToastDismissedThroughId = 0
 const thinkingThreadIds = new Set()
+const HITOMI_SHORTCUT_ID = "agent1c:shortcut:hitomi"
 
 const CORE_AGENT_PANEL_IDS = ["chat", "openai", "telegram", "config", "shellrelay", "soul", "tools", "heartbeat", "events"]
 const pendingDocSaves = new Set()
@@ -2165,126 +2163,20 @@ function getClippyCompactHtml(){
   return `<div class="clippy-line">No messages yet.</div>`
 }
 
-function computeNextDesktopIconPosition({ excludeEl = null } = {}){
-  const desktop = document.getElementById("desktop")
-  if (!desktop) return { x: 10, y: 10 }
-  const iconLayer = document.getElementById("iconLayer")
-  const cs = getComputedStyle(document.documentElement)
-  const cellW = parseInt(cs.getPropertyValue("--icon-cell-w"), 10) || 92
-  const cellH = parseInt(cs.getPropertyValue("--icon-cell-h"), 10) || 86
-  const pad = parseInt(cs.getPropertyValue("--icon-pad"), 10) || 10
-  const dw = desktop.clientWidth || 0
-  const dh = desktop.clientHeight || 0
-  const cols = Math.max(1, Math.floor((Math.max(1, dw) - pad) / cellW))
-  const rows = Math.max(1, Math.floor((Math.max(1, dh) - pad) / cellH))
-
-  const occupied = new Set()
-  const allIcons = Array.from(iconLayer?.querySelectorAll(".desk-icon") || [])
-  for (const el of allIcons) {
-    if (!el || el === excludeEl) continue
-    const left = parseInt(el.style.left || "", 10)
-    const top = parseInt(el.style.top || "", 10)
-    if (!Number.isFinite(left) || !Number.isFinite(top)) continue
-    const col = Math.round((left - pad) / cellW)
-    const row = Math.round((dh - pad - cellH - top) / cellH)
-    if (col < 0 || row < 0) continue
-    occupied.add(`${col}:${row}`)
-  }
-
-  let selectedCol = 0
-  let selectedRow = 0
-  let found = false
-  const maxScan = Math.max(allIcons.length + 8, cols * rows)
-  for (let i = 0; i < maxScan; i += 1) {
-    const col = i % cols
-    const row = Math.floor(i / cols)
-    if (row >= rows) break
-    if (occupied.has(`${col}:${row}`)) continue
-    selectedCol = col
-    selectedRow = row
-    found = true
-    break
-  }
-
-  if (!found) {
-    selectedCol = 0
-    selectedRow = Math.max(0, rows - 1)
-  }
-
-  return {
-    x: pad + selectedCol * cellW,
-    y: dh - pad - cellH - selectedRow * cellH,
-  }
-}
-
 function ensureHitomiDesktopIcon(){
-  const iconLayer = document.getElementById("iconLayer")
-  if (!iconLayer) return null
-  if (hitomiDesktopIcon && hitomiDesktopIcon.isConnected) return hitomiDesktopIcon
-  const el = document.createElement("div")
-  el.className = "desk-icon hitomi-desk-icon"
-  el.dataset.hitomiIcon = "1"
-  el.innerHTML = `
-    <div class="glyph"><img src="assets/hedgey1.png" alt="Hitomi icon" /></div>
-    <div class="label">
-      <div class="line">Hitomi</div>
-      <div class="line"></div>
-    </div>
-  `
-  el.addEventListener("click", (e) => {
-    e.stopPropagation()
-    setClippyMode(true)
+  if (!wmRef?.registerDesktopShortcut) return null
+  wmRef.registerDesktopShortcut(HITOMI_SHORTCUT_ID, {
+    title: "Hitomi",
+    kind: "app",
+    iconImage: "assets/hedgey1.png",
+    onClick: () => setClippyMode(true),
+    order: 9999,
   })
-  iconLayer.appendChild(el)
-  hitomiDesktopIcon = el
-  ensureHitomiIconObserver()
-  return el
+  return HITOMI_SHORTCUT_ID
 }
 
 function removeHitomiDesktopIcon(){
-  if (hitomiDesktopIcon && hitomiDesktopIcon.isConnected) hitomiDesktopIcon.remove()
-  hitomiDesktopIcon = null
-}
-
-function positionHitomiDesktopIcon(){
-  if (!hitomiDesktopIcon || !hitomiDesktopIcon.isConnected) return
-  const pos = computeNextDesktopIconPosition({ excludeEl: hitomiDesktopIcon })
-  const nextLeft = `${pos.x}px`
-  const nextTop = `${pos.y}px`
-  if (hitomiDesktopIcon.style.left !== nextLeft) hitomiDesktopIcon.style.left = nextLeft
-  if (hitomiDesktopIcon.style.top !== nextTop) hitomiDesktopIcon.style.top = nextTop
-}
-
-function ensureHitomiIconObserver(){
-  const iconLayer = document.getElementById("iconLayer")
-  if (!iconLayer || hitomiIconObserver) return
-  hitomiIconObserver = new MutationObserver((mutations) => {
-    if (!hitomiDesktopIcon || !hitomiDesktopIcon.isConnected) return
-    let shouldRelayout = false
-    for (const m of mutations) {
-      if (m.type === "childList") {
-        shouldRelayout = true
-        break
-      }
-      if (m.type === "attributes") {
-        if (m.target === hitomiDesktopIcon) continue
-        shouldRelayout = true
-        break
-      }
-    }
-    if (!shouldRelayout || hitomiIconRelayoutQueued) return
-    hitomiIconRelayoutQueued = true
-    requestAnimationFrame(() => {
-      hitomiIconRelayoutQueued = false
-      positionHitomiDesktopIcon()
-    })
-  })
-  hitomiIconObserver.observe(iconLayer, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ["style"],
-  })
+  wmRef?.unregisterDesktopShortcut?.(HITOMI_SHORTCUT_ID)
 }
 
 async function hasAnyAiProviderKey(){
@@ -2328,7 +2220,6 @@ async function refreshHitomiDesktopIcon(){
     return
   }
   ensureHitomiDesktopIcon()
-  positionHitomiDesktopIcon()
 }
 
 function hideClippyBubble(){
@@ -2945,7 +2836,6 @@ function ensureClippyAssistant(){
     window.addEventListener("touchstart", noteActivity, { passive: true, capture: true })
   }
   window.addEventListener("resize", () => {
-    positionHitomiDesktopIcon()
     if (!clippyUi?.root) return
     baseLeft = parseFloat(clippyUi.root.style.left) || 0
     baseTop = parseFloat(clippyUi.root.style.top) || 0

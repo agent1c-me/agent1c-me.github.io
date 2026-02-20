@@ -517,7 +517,7 @@
       background: transparent;
       border-radius: 6px;
     }
-    .desk-icon.hitomi-desk-icon .glyph img{
+    .desk-icon .glyph img{
       width: calc(var(--icon-size) + 8px);
       height: calc(var(--icon-size) + 8px);
       object-fit: contain;
