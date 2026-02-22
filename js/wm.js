@@ -1355,7 +1355,7 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     const field = win.querySelector("[data-urlfield]");
     const goBtn = win.querySelector("[data-go]");
     const saveBtn = win.querySelector("[data-save]");
-    const routeBtn = win.querySelector("[data-browser-route]");
+    let routeBtn = win.querySelector("[data-browser-route]");
     const backBtn = win.querySelector("[data-back]");
     const iframe = win.querySelector("[data-iframe]");
     const status = win.querySelector("[data-browser-status]");
@@ -1370,6 +1370,16 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
 
     let lastResolvedUrl = "";
     let lastResolvedTitle = "";
+
+    if (!routeBtn && goBtn?.parentElement) {
+      routeBtn = document.createElement("button");
+      routeBtn.type = "button";
+      routeBtn.className = "btn browser-route-btn";
+      routeBtn.setAttribute("data-browser-route", "");
+      routeBtn.title = "Relay routing";
+      routeBtn.textContent = "🖧";
+      goBtn.parentElement.insertBefore(routeBtn, goBtn);
+    }
 
     function refreshRouteButton(){
       if (!routeBtn) return;
