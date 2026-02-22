@@ -80,6 +80,7 @@ Agent1c.me and HedgeyOS are both by Decentricity.
 - v1 scope:
   - Linux + macOS setup only
   - uses the same localhost relay runtime
+  - runs as a separate relay instance (default `127.0.0.1:8766`) so Shell Relay can stay online on `8765`
   - Tor routing applies to relay HTTP fetch path only
   - shell command execution remains local and unchanged
 - Relay scripts support proxy mode via:

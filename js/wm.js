@@ -1117,6 +1117,35 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     }
   }
 
+  function getBrowserRelayStates(){
+    try {
+      const states = window.__agent1cBrowserRelayStates || null;
+      if (states && typeof states === "object") {
+        const shell = states.shell || {};
+        const tor = states.tor || {};
+        return {
+          shell: {
+            kind: "shell",
+            label: "Shell Relay",
+            enabled: shell.enabled === true,
+            baseUrl: String(shell.baseUrl || "http://127.0.0.1:8765").replace(/\/+$/, ""),
+          },
+          tor: {
+            kind: "tor",
+            label: "Tor Relay",
+            enabled: tor.enabled === true,
+            baseUrl: String(tor.baseUrl || "http://127.0.0.1:8766").replace(/\/+$/, ""),
+          },
+        };
+      }
+    } catch {}
+    const legacy = getRelayState();
+    return {
+      shell: { kind: "shell", label: "Shell Relay", enabled: legacy.enabled, baseUrl: legacy.baseUrl },
+      tor: { kind: "tor", label: "Tor Relay", enabled: false, baseUrl: "http://127.0.0.1:8766" },
+    };
+  }
+
   function parseHeaderValue(headers, key){
     const source = String(headers || "");
     const line = source.split(/\r?\n/).find(row => row.toLowerCase().startsWith(`${String(key || "").toLowerCase()}:`));
@@ -1145,8 +1174,8 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     return plain.slice(0, 120);
   }
 
-  async function relayFetch(url, mode, maxBytes){
-    const relay = getRelayState();
+  async function relayFetch(url, mode, maxBytes, relayOverride){
+    const relay = relayOverride || getRelayState();
     if (!relay.enabled) throw new Error("relay disabled");
     const resp = await fetch(`${relay.baseUrl}/v1/http/fetch`, {
       method: "POST",
@@ -1160,6 +1189,23 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     if (!resp.ok) throw new Error(`relay ${resp.status}`);
     const json = await resp.json();
     return json || {};
+  }
+
+  async function promptRelayChoiceIfNeeded(){
+    const relays = getBrowserRelayStates();
+    const shell = relays.shell;
+    const tor = relays.tor;
+    if (!shell.enabled && !tor.enabled) return null;
+    if (shell.enabled && !tor.enabled) return shell;
+    if (!shell.enabled && tor.enabled) return tor;
+    let choice = "";
+    try { choice = String(sessionStorage.getItem("agent1c_browser_relay_choice") || "") } catch {}
+    if (choice === "shell") return shell;
+    if (choice === "tor") return tor;
+    const useTor = window.confirm("Both Shell Relay and Tor Relay are available.\n\nOK = Use Tor Relay (private)\nCancel = Use Shell Relay (faster)")
+    const picked = useTor ? tor : shell;
+    try { sessionStorage.setItem("agent1c_browser_relay_choice", picked.kind) } catch {}
+    return picked;
   }
 
   function renderRelayBody(iframe, targetUrl, page){
@@ -1201,14 +1247,16 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     let openedViaRelay = false;
     if (shouldProbeRelay(norm)) {
       try {
-        const probe = await relayFetch(norm, "head", opts.maxBytes || 300000);
+        const chosenRelay = await promptRelayChoiceIfNeeded();
+        const relayToUse = chosenRelay || getRelayState();
+        const probe = await relayFetch(norm, "head", opts.maxBytes || 300000, relayToUse);
         if (probe.ok && isFrameBlockedByHeaders(probe.headers || "")) {
-          const page = await relayFetch(norm, "get", opts.maxBytes || 300000);
+          const page = await relayFetch(norm, "get", opts.maxBytes || 300000, relayToUse);
           if (page.ok) {
             openedViaRelay = true;
             const resolvedUrl = String(page.finalUrl || norm);
             renderRelayBody(iframe, resolvedUrl, page);
-            setStatus("Opened via local relay fallback");
+            setStatus(`Opened via ${relayToUse.kind === "tor" ? "Tor Relay" : "Shell Relay"} fallback`);
             const title = extractHtmlTitle(page.body || "");
             if (onRelayPage) onRelayPage({ page, title, finalUrl: resolvedUrl });
             return { ok: true, finalUrl: resolvedUrl, title, viaRelay: true };

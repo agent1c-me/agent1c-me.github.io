@@ -930,6 +930,12 @@ New env var:
 - `AGENT1C_RELAY_HTTP_PROXY`
   - example: `socks5h://127.0.0.1:9050`
 
+Coexistence rule (important):
+- Shell Relay and Tor Relay must be able to run at the same time.
+- Shell Relay default port: `8765`
+- Tor Relay default port: `8766`
+- Do not reuse one relay config object for both windows.
+
 Important:
 - Tor proxy affects relay HTTP fetch path (`/v1/http/fetch`) only.
 - Shell command execution (`/v1/shell/exec`) remains local and unchanged.
@@ -961,4 +967,6 @@ When porting to `../agent1c-ai.github.io`:
 5. Re-test:
    - Shell Relay still works
    - Tor Relay `/v1/tor/status` works
+   - Both relays can run simultaneously (`8765` + `8766`)
+   - Browser asks which relay to use when both are enabled
    - Shell exec unchanged

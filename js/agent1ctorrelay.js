@@ -82,9 +82,9 @@ function torInstallBaseUrl(){
 function torSetupByOs(os){
   const base = torInstallBaseUrl()
   const installRelayCmd = `curl -fsSL ${base}/install.sh | sh`
-  const relayStartTorCmd = `AGENT1C_RELAY_HTTP_PROXY=socks5h://127.0.0.1:9050 ~/.agent1c-relay/agent1c-relay.sh`
-  const relayHealthCmd = `curl -s -H "Origin: https://agent1c.me" http://127.0.0.1:8765/v1/health`
-  const torStatusCmd = `curl -s -H "Origin: https://agent1c.me" http://127.0.0.1:8765/v1/tor/status`
+  const relayStartTorCmd = `AGENT1C_RELAY_PORT=8766 AGENT1C_RELAY_HTTP_PROXY=socks5h://127.0.0.1:9050 ~/.agent1c-relay/agent1c-relay.sh`
+  const relayHealthCmd = `curl -s -H "Origin: https://agent1c.me" http://127.0.0.1:8766/v1/health`
+  const torStatusCmd = `curl -s -H "Origin: https://agent1c.me" http://127.0.0.1:8766/v1/tor/status`
   if (os === "mac") {
     return {
       label: "macOS",
@@ -108,7 +108,7 @@ function torSetupByOs(os){
       ["Step 4: Install Agent1c relay", installRelayCmd],
       ["Step 5: Start relay in Tor mode", relayStartTorCmd],
       ["Step 6: Verify relay + Tor", `${relayHealthCmd}\n${torStatusCmd}`],
-      ["Optional: user systemd relay in Tor mode", `mkdir -p ~/.config/systemd/user\ncat > ~/.config/systemd/user/agent1c-relay-tor.service <<'EOF'\n[Unit]\nDescription=Agent1c Local Relay (Tor)\nAfter=network.target\n\n[Service]\nType=simple\nExecStart=%h/.agent1c-relay/agent1c-relay.sh\nRestart=always\nRestartSec=2\nEnvironment=AGENT1C_RELAY_HTTP_PROXY=socks5h://127.0.0.1:9050\nEnvironment=AGENT1C_RELAY_ALLOW_ORIGINS=https://agent1c.me,https://www.agent1c.me,http://localhost:8000,http://127.0.0.1:8000\n\n[Install]\nWantedBy=default.target\nEOF\nsystemctl --user daemon-reload\nsystemctl --user enable --now agent1c-relay-tor.service\nsystemctl --user status --no-pager agent1c-relay-tor.service`],
+      ["Optional: user systemd relay in Tor mode", `mkdir -p ~/.config/systemd/user\ncat > ~/.config/systemd/user/agent1c-relay-tor.service <<'EOF'\n[Unit]\nDescription=Agent1c Local Relay (Tor)\nAfter=network.target\n\n[Service]\nType=simple\nExecStart=%h/.agent1c-relay/agent1c-relay.sh\nRestart=always\nRestartSec=2\nEnvironment=AGENT1C_RELAY_PORT=8766\nEnvironment=AGENT1C_RELAY_HTTP_PROXY=socks5h://127.0.0.1:9050\nEnvironment=AGENT1C_RELAY_ALLOW_ORIGINS=https://agent1c.me,https://www.agent1c.me,http://localhost:8000,http://127.0.0.1:8000\n\n[Install]\nWantedBy=default.target\nEOF\nsystemctl --user daemon-reload\nsystemctl --user enable --now agent1c-relay-tor.service\nsystemctl --user status --no-pager agent1c-relay-tor.service`],
     ],
     caveat: "Tor mode affects relay HTTP fetch path only. Shell commands still run locally without Tor routing.",
   }
@@ -162,9 +162,9 @@ export function torRelayWindowHtml(){
         <div id="torRelaySetupBody">${renderTorSetupBody("linux")}</div>
         <div class="agent-setup-section agent-setup-section-stop">
           <div class="agent-setup-title">Stop / Restart Tor Relay</div>
-          <div class="agent-note">If port 8765 is stuck or Tor mode fails, stop listeners and restart in Tor mode.</div>
-          ${codeCard("Stop running relay", "pkill -f \"agent1c-relay.sh\" || true\npkill -f \"socat.*8765\" || true\nfuser -k 8765/tcp 2>/dev/null || true", "stop")}
-          ${codeCard("Restart relay (Tor mode)", "AGENT1C_RELAY_HTTP_PROXY=socks5h://127.0.0.1:9050 ~/.agent1c-relay/agent1c-relay.sh", "restart")}
+          <div class="agent-note">If port 8766 is stuck or Tor mode fails, stop listeners and restart in Tor mode.</div>
+          ${codeCard("Stop running relay", "pkill -f \"agent1c-relay.sh\" || true\npkill -f \"socat.*8766\" || true\nfuser -k 8766/tcp 2>/dev/null || true", "stop")}
+          ${codeCard("Restart relay (Tor mode)", "AGENT1C_RELAY_PORT=8766 AGENT1C_RELAY_HTTP_PROXY=socks5h://127.0.0.1:9050 ~/.agent1c-relay/agent1c-relay.sh", "restart")}
         </div>
         <div class="agent-row">
           <button id="torRelayNextBtn" class="btn" type="button">Next: Connect</button>
@@ -186,7 +186,7 @@ export function torRelayWindowHtml(){
         </div>
         <label class="agent-form-label">
           <span>Relay URL</span>
-          <input id="torRelayBaseUrlInput" class="field" type="text" placeholder="http://127.0.0.1:8765" />
+          <input id="torRelayBaseUrlInput" class="field" type="text" placeholder="http://127.0.0.1:8766" />
         </label>
         <label class="agent-form-label">
           <span>Relay token (optional)</span>
@@ -205,7 +205,7 @@ export function torRelayWindowHtml(){
           <pre id="torRelayTestOutput" class="agent-terminal-output"></pre>
           <div class="agent-terminal-row">
             <span class="agent-terminal-prompt">$</span>
-            <input id="torRelayCommandInput" class="agent-terminal-input" type="text" placeholder="curl -s -H 'Origin: https://agent1c.me' http://127.0.0.1:8765/v1/tor/status" />
+            <input id="torRelayCommandInput" class="agent-terminal-input" type="text" placeholder="curl -s -H 'Origin: https://agent1c.me' http://127.0.0.1:8766/v1/tor/status" />
             <button id="torRelayRunBtn" class="btn" type="button">Run</button>
             <button id="torRelayClearBtn" class="btn" type="button">Clear</button>
           </div>

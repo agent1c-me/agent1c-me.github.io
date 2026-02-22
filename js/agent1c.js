@@ -213,6 +213,10 @@ const appState = {
     relayBaseUrl: RELAY_DEFAULTS.baseUrl,
     relayToken: RELAY_DEFAULTS.token,
     relayTimeoutMs: RELAY_DEFAULTS.timeoutMs,
+    torRelayEnabled: false,
+    torRelayBaseUrl: "http://127.0.0.1:8766",
+    torRelayToken: "",
+    torRelayTimeoutMs: RELAY_DEFAULTS.timeoutMs,
   },
   agent: {
     soulMd: DEFAULT_SOUL,
@@ -3242,13 +3246,22 @@ function refreshUi(){
 
 function publishBrowserRelayState(){
   try {
-    window.__agent1cRelayState = {
+    const shellRelay = {
       enabled: Boolean(appState.config.relayEnabled),
       baseUrl: String(appState.config.relayBaseUrl || ""),
       timeoutMs: Number(appState.config.relayTimeoutMs || 30000),
       updatedAt: Date.now(),
     }
-    window.dispatchEvent(new CustomEvent("agent1c:relay-state-updated", { detail: window.__agent1cRelayState }))
+    const torRelay = {
+      enabled: Boolean(appState.config.torRelayEnabled),
+      baseUrl: String(appState.config.torRelayBaseUrl || ""),
+      timeoutMs: Number(appState.config.torRelayTimeoutMs || 30000),
+      updatedAt: Date.now(),
+    }
+    window.__agent1cRelayState = shellRelay
+    window.__agent1cTorRelayState = torRelay
+    window.__agent1cBrowserRelayStates = { shell: shellRelay, tor: torRelay }
+    window.dispatchEvent(new CustomEvent("agent1c:relay-state-updated", { detail: window.__agent1cBrowserRelayStates }))
   } catch {}
 }
 
@@ -3446,12 +3459,17 @@ function wireTorRelayWindowDom(winObj){
   wireTorRelayDom({
     root,
     els,
-    getRelayConfig: () => normalizeRelayConfig(appState.config),
+    getRelayConfig: () => normalizeRelayConfig({
+      relayEnabled: appState.config.torRelayEnabled,
+      relayBaseUrl: appState.config.torRelayBaseUrl,
+      relayToken: appState.config.torRelayToken,
+      relayTimeoutMs: appState.config.torRelayTimeoutMs,
+    }),
     onSaveRelayConfig: async (nextCfg) => {
-      appState.config.relayEnabled = nextCfg.enabled
-      appState.config.relayBaseUrl = nextCfg.baseUrl
-      appState.config.relayToken = nextCfg.token
-      appState.config.relayTimeoutMs = nextCfg.timeoutMs
+      appState.config.torRelayEnabled = nextCfg.enabled
+      appState.config.torRelayBaseUrl = nextCfg.baseUrl
+      appState.config.torRelayToken = nextCfg.token
+      appState.config.torRelayTimeoutMs = nextCfg.timeoutMs
       await persistState()
       refreshUi()
     },
@@ -5159,6 +5177,10 @@ async function loadPersistentState(){
     appState.config.relayBaseUrl = relayCfg.baseUrl
     appState.config.relayToken = relayCfg.token
     appState.config.relayTimeoutMs = relayCfg.timeoutMs
+    appState.config.torRelayEnabled = cfg.torRelayEnabled === true
+    appState.config.torRelayBaseUrl = String(cfg.torRelayBaseUrl || "http://127.0.0.1:8766")
+    appState.config.torRelayToken = String(cfg.torRelayToken || "")
+    appState.config.torRelayTimeoutMs = Math.max(1000, Math.min(120000, Number(cfg.torRelayTimeoutMs) || RELAY_DEFAULTS.timeoutMs))
     appState.telegramEnabled = cfg.telegramEnabled !== false
     appState.telegramPollMs = Math.max(5000, Number(cfg.telegramPollMs) || appState.telegramPollMs)
   }
