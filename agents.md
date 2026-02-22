@@ -901,3 +901,64 @@ When working between `.me` and `.ai`, use these diff maps first:
 Notes:
 - Keep intentional divergence explicit and documented.
 - If a capability exists in one repo but is hidden or unshown in the other (for example Telegram panel visibility), record it in both diff maps before changing runtime behavior.
+
+---
+
+## 22) Tor Relay (.me first, port-to-.ai later)
+
+Implemented in `.me` first for safe rollout and later replication to `.ai`.
+
+### 22.1 Frontend structure
+
+- New module: `js/agent1ctorrelay.js`
+- New agent panel window: `Tor Relay`
+- New Config button: `Tor Relay...`
+- New panel id: `torrelay`
+- Desktop icon emoji mapping added in `js/desktop-icons.js` (`🧅`)
+
+Design rule:
+- Tor Relay window mirrors Shell Relay window UX (Setup / Connect / Terminal tabs)
+- Linux + macOS only in v1 (Android intentionally excluded)
+
+### 22.2 Relay runtime behavior
+
+Existing relay scripts were extended (not forked):
+- `shell-relay/agent1c-relay.sh`
+- `shell-relay/handler.sh`
+
+New env var:
+- `AGENT1C_RELAY_HTTP_PROXY`
+  - example: `socks5h://127.0.0.1:9050`
+
+Important:
+- Tor proxy affects relay HTTP fetch path (`/v1/http/fetch`) only.
+- Shell command execution (`/v1/shell/exec`) remains local and unchanged.
+
+### 22.3 Verification endpoint
+
+New relay endpoint:
+- `GET /v1/tor/status`
+
+Purpose:
+- report whether relay has proxy configured
+- attempt Tor check via `https://check.torproject.org/api/ip`
+- return `isTor` and `ip` when available
+
+Health endpoint (`/v1/health`) also now reports proxy/transport info.
+
+### 22.4 Porting to `.ai` checklist
+
+When porting to `../agent1c-ai.github.io`:
+1. Copy `js/agent1ctorrelay.js`
+2. Apply same thin wiring in `js/agent1c.js`:
+   - import
+   - `wins.torrelay`
+   - Config button
+   - panel spawn/restore/wire
+   - onboarding minimize behavior
+3. Copy `shell-relay/agent1c-relay.sh` + `shell-relay/handler.sh` Tor proxy changes
+4. Keep canonical domains only (`agent1c.ai`, `agent1c.me`) in allowlists/docs
+5. Re-test:
+   - Shell Relay still works
+   - Tor Relay `/v1/tor/status` works
+   - Shell exec unchanged

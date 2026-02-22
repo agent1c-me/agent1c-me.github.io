@@ -5,6 +5,7 @@ TOKEN="${AGENT1C_RELAY_TOKEN:-}"
 MAX_OUTPUT_CHARS="${AGENT1C_RELAY_MAX_OUTPUT_CHARS:-65536}"
 DEFAULT_TIMEOUT_MS="${AGENT1C_RELAY_DEFAULT_TIMEOUT_MS:-30000}"
 DEFAULT_FETCH_TIMEOUT_S="${AGENT1C_RELAY_FETCH_TIMEOUT_S:-25}"
+HTTP_PROXY="${AGENT1C_RELAY_HTTP_PROXY:-}"
 ALLOW_ORIGINS="${AGENT1C_RELAY_ALLOW_ORIGINS:-https://agent1c.me,https://www.agent1c.me,http://localhost:8000,http://127.0.0.1:8000}"
 HOST="${AGENT1C_RELAY_HOST:-127.0.0.1}"
 PORT="${AGENT1C_RELAY_PORT:-8765}"
@@ -88,6 +89,14 @@ truncate_file(){
   else
     cp "$input" "$output"
     printf "0"
+  fi
+}
+
+run_curl(){
+  if [ -n "$HTTP_PROXY" ]; then
+    curl --proxy "$HTTP_PROXY" "$@"
+  else
+    curl "$@"
   fi
 }
 
@@ -182,14 +191,14 @@ run_http_fetch(){
 
   curl_ok=1
   if [ "$mode" = "head" ]; then
-    if curl -L -sS -I --max-time "$DEFAULT_FETCH_TIMEOUT_S" \
+    if run_curl -L -sS -I --max-time "$DEFAULT_FETCH_TIMEOUT_S" \
       -A "Agent1cRelay/1.0" \
       "$target_url" >"$headers_file" 2>/dev/null; then
       curl_ok=0
       printf "%s" "$target_url" > "$effective_file"
     fi
   else
-    if curl -L -sS --max-time "$DEFAULT_FETCH_TIMEOUT_S" \
+    if run_curl -L -sS --max-time "$DEFAULT_FETCH_TIMEOUT_S" \
       -A "Agent1cRelay/1.0" \
       -D "$headers_file" \
       -o "$body_file" \
@@ -297,7 +306,27 @@ if [ -n "$TOKEN" ] && [ "$TOKEN" != "$TOKEN_HEADER" ]; then
 fi
 
 if [ "$METHOD" = "GET" ] && [ "$PATH_ONLY" = "/v1/health" ]; then
-  body="$(jq -nc --arg host "$HOST" --argjson port "$PORT" '{ok:true,version:"sh-0.1",mode:"shell",host:$host,port:$port}')"
+  transport_mode="direct"
+  if [ -n "$HTTP_PROXY" ]; then transport_mode="proxy"; fi
+  body="$(jq -nc --arg host "$HOST" --argjson port "$PORT" --arg transport "$transport_mode" --arg httpProxy "$HTTP_PROXY" '{ok:true,version:"sh-0.1",mode:"shell",host:$host,port:$port,transport:$transport,httpProxy:$httpProxy}')"
+  send_json 200 "$body"
+  exit 0
+fi
+
+if [ "$METHOD" = "GET" ] && [ "$PATH_ONLY" = "/v1/tor/status" ]; then
+  if [ -z "$HTTP_PROXY" ]; then
+    body="$(jq -nc '{ok:true,proxyConfigured:false,isTor:false,transport:"direct"}')"
+    send_json 200 "$body"
+    exit 0
+  fi
+  tor_resp="$(run_curl -sS --max-time 12 https://check.torproject.org/api/ip 2>/dev/null || true)"
+  if [ -z "$tor_resp" ]; then
+    send_json 200 "$(jq -nc --arg proxy "$HTTP_PROXY" '{ok:false,proxyConfigured:true,isTor:false,transport:"proxy",httpProxy:$proxy,error:"tor check failed"}')"
+    exit 0
+  fi
+  is_tor="$(printf "%s" "$tor_resp" | jq -r 'if has("IsTor") then .IsTor elif has("is_tor") then .is_tor else false end' 2>/dev/null || printf "false")"
+  ip_addr="$(printf "%s" "$tor_resp" | jq -r '.IP // .ip // ""' 2>/dev/null || true)"
+  body="$(jq -nc --arg proxy "$HTTP_PROXY" --arg ip "$ip_addr" --argjson isTor "$(printf "%s" "$is_tor" | tr '[:upper:]' '[:lower:]')" '{ok:true,proxyConfigured:true,transport:"proxy",httpProxy:$proxy,isTor:$isTor,ip:$ip}')"
   send_json 200 "$body"
   exit 0
 fi

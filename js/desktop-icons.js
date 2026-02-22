@@ -43,8 +43,9 @@ export function createDesktopIcons({ iconLayer, desktop }){
     if (kind === "notes") return "📑";
     if (kind === "note") return "📝";
     if (kind === "browser") return "🌐";
-    if (kind === "app" && /(agent1c:|chat|ai apis|openai api|telegram api|loop|config|shell relay|soul\.md|tools\.md|heartbeat\.md|events|create vault|unlock vault)/i.test(meta?.title || "")) {
+    if (kind === "app" && /(agent1c:|chat|ai apis|openai api|telegram api|loop|config|shell relay|tor relay|soul\.md|tools\.md|heartbeat\.md|events|create vault|unlock vault)/i.test(meta?.title || "")) {
       const title = (meta?.title || "").toLowerCase();
+      if (title.includes("tor relay")) return "🧅";
       if (title.includes("shell relay")) return "🖥️";
       if (title.includes("heartbeat")) return "❤️";
       if (title.includes("soul")) return "👻";

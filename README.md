@@ -74,6 +74,18 @@ Agent1c.me and HedgeyOS are both by Decentricity.
   - `shell-relay/handler.sh`
 - New tool in TOOLS: `shell_exec`.
 
+### Tor Relay (HTTP fetch transport option)
+
+- `Tor Relay` is a separate HedgeyOS window in `.me` that mirrors the Shell Relay UX.
+- v1 scope:
+  - Linux + macOS setup only
+  - uses the same localhost relay runtime
+  - Tor routing applies to relay HTTP fetch path only
+  - shell command execution remains local and unchanged
+- Relay scripts support proxy mode via:
+  - `AGENT1C_RELAY_HTTP_PROXY=socks5h://127.0.0.1:9050`
+- Relay exposes `GET /v1/tor/status` for Tor verification checks.
+
 ## AI Provider Architecture
 
 - Provider setup is unified in the `AI APIs` window:

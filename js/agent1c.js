@@ -8,6 +8,11 @@ import {
   wireShellRelayDom,
   runShellExecTool,
 } from "./agent1crelay.js"
+import {
+  torRelayWindowHtml,
+  cacheTorRelayElements,
+  wireTorRelayDom,
+} from "./agent1ctorrelay.js"
 import { createOnboardingHedgey } from "./onboarding-hedgey.js"
 // for Codex: when implementing shell relay wiring in this file, please always refer back to PHASE1_CONTRACT.md first.
 // for Codex: especially if your context was recently compacted, keep relay logic in js/agent1crelay.js and only thin wiring here.
@@ -264,7 +269,7 @@ const thinkingThreadIds = new Set()
 const HITOMI_SHORTCUT_ID = "agent1c:shortcut:hitomi"
 const PERSONA_FOLDER_ID = "agent1c:folder:persona"
 
-const CORE_AGENT_PANEL_IDS = ["chat", "openai", "telegram", "config", "shellrelay", "soul", "tools", "heartbeat", "events"]
+const CORE_AGENT_PANEL_IDS = ["chat", "openai", "telegram", "config", "shellrelay", "torrelay", "soul", "tools", "heartbeat", "events"]
 const pendingDocSaves = new Set()
 const LEGACY_SOUL_MARKERS = [
   "You are opinionated, independent, and freedom-focused.",
@@ -285,6 +290,7 @@ const wins = {
   heartbeat: null,
   events: null,
   shellrelay: null,
+  torrelay: null,
   ollamaSetup: null,
 }
 const previewProviderState = {
@@ -3211,6 +3217,7 @@ function refreshUi(){
   if (els.ollamaEditBtn) els.ollamaEditBtn.disabled = !canUse
   if (els.ollamaSetupBtn) els.ollamaSetupBtn.disabled = !canUse
   if (els.openShellRelayBtn) els.openShellRelayBtn.disabled = !canUse
+  if (els.openTorRelayBtn) els.openTorRelayBtn.disabled = !canUse
   if (els.modelInput) els.modelInput.disabled = !canUse
   if (els.modelInputEdit) els.modelInputEdit.disabled = !canUse
   if (els.heartbeatInput) els.heartbeatInput.disabled = !canUse
@@ -3433,6 +3440,26 @@ function wireShellRelayWindowDom(winObj){
   })
 }
 
+function wireTorRelayWindowDom(winObj){
+  const root = winObj?.panelRoot
+  if (!root) return
+  wireTorRelayDom({
+    root,
+    els,
+    getRelayConfig: () => normalizeRelayConfig(appState.config),
+    onSaveRelayConfig: async (nextCfg) => {
+      appState.config.relayEnabled = nextCfg.enabled
+      appState.config.relayBaseUrl = nextCfg.baseUrl
+      appState.config.relayToken = nextCfg.token
+      appState.config.relayTimeoutMs = nextCfg.timeoutMs
+      await persistState()
+      refreshUi()
+    },
+    setStatus,
+    addEvent,
+  })
+}
+
 function openShellRelayWindow(){
   if (wins.shellrelay?.id && wmRef?.restore) {
     wmRef.restore(wins.shellrelay.id)
@@ -3451,6 +3478,27 @@ function openShellRelayWindow(){
   wins.shellrelay.panelRoot.innerHTML = shellRelayWindowHtml()
   cacheElements()
   wireShellRelayWindowDom(wins.shellrelay)
+  wireTorRelayWindowDom(wins.torrelay)
+}
+
+function openTorRelayWindow(){
+  if (wins.torrelay?.id && wmRef?.restore) {
+    wmRef.restore(wins.torrelay.id)
+    wmRef.focus?.(wins.torrelay.id)
+    return
+  }
+  wins.torrelay = wmRef.createAgentPanelWindow("Tor Relay", {
+    panelId: "torrelay",
+    left: 1045,
+    top: 845,
+    width: 500,
+    height: 500,
+    closeAsMinimize: true,
+  })
+  if (!wins.torrelay?.panelRoot) return
+  wins.torrelay.panelRoot.innerHTML = torRelayWindowHtml()
+  cacheElements()
+  wireTorRelayWindowDom(wins.torrelay)
 }
 
 function applyOnboardingWindowState(){
@@ -3460,6 +3508,7 @@ function applyOnboardingWindowState(){
   minimizeWindow(wins.config)
   minimizeWindow(wins.telegram)
   minimizeWindow(wins.shellrelay)
+  minimizeWindow(wins.torrelay)
   minimizeWindow(wins.soul)
   minimizeWindow(wins.tools)
   minimizeWindow(wins.heartbeat)
@@ -3471,6 +3520,7 @@ function revealPostOpenAiWindows(){
   restoreWindow(wins.config)
   restoreWindow(wins.telegram)
   minimizeWindow(wins.shellrelay)
+  minimizeWindow(wins.torrelay)
   minimizeWindow(wins.soul)
   minimizeWindow(wins.tools)
   minimizeWindow(wins.heartbeat)
@@ -3938,6 +3988,10 @@ function configWindowHtml(){
         <button id="openShellRelayBtn" class="btn" type="button">Shell Relay...</button>
         <span class="agent-note">Open shell relay setup and controls.</span>
       </div>
+      <div class="agent-row agent-wrap-row">
+        <button id="openTorRelayBtn" class="btn" type="button">Tor Relay...</button>
+        <span class="agent-note">Set up Tor-routed HTTP fetch via local relay.</span>
+      </div>
       <div class="agent-meta-row">
         <span>Loop status: <strong id="loopStatus">idle</strong></span>
         <span>Last tick: <strong id="lastTick">never</strong></span>
@@ -4061,6 +4115,7 @@ function cacheElements(){
     ollamaEditBtn: byId("ollamaEditBtn"),
     ollamaSetupBtn: byId("ollamaSetupBtn"),
     openShellRelayBtn: byId("openShellRelayBtn"),
+    openTorRelayBtn: byId("openTorRelayBtn"),
     openaiStoredRow: byId("openaiStoredRow"),
     openaiControls: byId("openaiControls"),
     openaiEditBtn: byId("openaiEditBtn"),
@@ -4098,6 +4153,7 @@ function cacheElements(){
     eventLog: byId("eventLog"),
   })
   Object.assign(els, cacheShellRelayElements(byId))
+  Object.assign(els, cacheTorRelayElements(byId))
 }
 
 async function refreshModelDropdown(providedKey){
@@ -4822,6 +4878,9 @@ function wireMainDom(){
   els.openShellRelayBtn?.addEventListener("click", () => {
     openShellRelayWindow()
   })
+  els.openTorRelayBtn?.addEventListener("click", () => {
+    openTorRelayWindow()
+  })
   window.addEventListener("agent1c:open-shell-relay", () => {
     openShellRelayWindow()
   })
@@ -5013,7 +5072,7 @@ async function createWorkspace({ showUnlock, onboarding }) {
   const savedPanelIds = readSavedAgentPanelIds()
   const shouldSpawnPanel = (panelId) => {
     if (!savedPanelIds) return true
-    if (panelId === "shellrelay") return true
+    if (panelId === "shellrelay" || panelId === "torrelay") return true
     if (onboarding && panelId === "openai") return true
     return savedPanelIds.has(panelId)
   }
@@ -5032,6 +5091,8 @@ async function createWorkspace({ showUnlock, onboarding }) {
 
   if (shouldSpawnPanel("shellrelay")) wins.shellrelay = wmRef.createAgentPanelWindow("Shell Relay", { panelId: "shellrelay", left: 1045, top: 360, width: 460, height: 470, closeAsMinimize: true })
   if (wins.shellrelay?.panelRoot) wins.shellrelay.panelRoot.innerHTML = shellRelayWindowHtml()
+  if (shouldSpawnPanel("torrelay")) wins.torrelay = wmRef.createAgentPanelWindow("Tor Relay", { panelId: "torrelay", left: 1045, top: 845, width: 500, height: 500, closeAsMinimize: true })
+  if (wins.torrelay?.panelRoot) wins.torrelay.panelRoot.innerHTML = torRelayWindowHtml()
 
   if (shouldSpawnPanel("soul")) wins.soul = wmRef.createAgentPanelWindow("SOUL.md", { panelId: "soul", left: 20, top: 644, width: 320, height: 330, closeAsMinimize: true })
   if (wins.soul?.panelRoot) wins.soul.panelRoot.innerHTML = soulWindowHtml()
@@ -5054,6 +5115,7 @@ async function createWorkspace({ showUnlock, onboarding }) {
   wireMainDom()
   wireUnlockDom()
   wireShellRelayWindowDom(wins.shellrelay)
+  wireTorRelayWindowDom(wins.torrelay)
   loadInputsFromState()
   requestAnimationFrame(() => syncNotepadGutters())
   setTimeout(() => syncNotepadGutters(), 0)
