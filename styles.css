@@ -1922,18 +1922,22 @@
   min-height: 0;
 }
 #relayPageSetup,
-#relayPageConnect{
+#relayPageConnect,
+#torRelayPageSetup,
+#torRelayPageConnect{
   overflow: auto;
   overflow-x: hidden;
   padding-right: 2px;
 }
-#relayPageTerminal{
+#relayPageTerminal,
+#torRelayPageTerminal{
   overflow: hidden;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
 }
-.agent-setup-stack.relay-terminal-mode #relayPageTerminal{
+.agent-setup-stack.relay-terminal-mode #relayPageTerminal,
+.agent-setup-stack.relay-terminal-mode #torRelayPageTerminal{
   overflow: hidden;
 }
 .agent-setup-intro{
