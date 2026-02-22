@@ -82,7 +82,7 @@ function torInstallBaseUrl(){
 function torSetupByOs(os){
   const base = torInstallBaseUrl()
   const installRelayCmd = `curl -fsSL ${base}/install.sh | sh`
-  const relayStartTorCmd = `AGENT1C_RELAY_PORT=8766 AGENT1C_RELAY_HTTP_PROXY=socks5h://127.0.0.1:9050 ~/.agent1c-relay/agent1c-relay.sh`
+  const relayStartTorCmd = `~/.agent1c-relay/agent1c-tor-relay.sh`
   const relayHealthCmd = `curl -s -H "Origin: https://agent1c.me" http://127.0.0.1:8766/v1/health`
   const torStatusCmd = `curl -s -H "Origin: https://agent1c.me" http://127.0.0.1:8766/v1/tor/status`
   if (os === "mac") {
@@ -108,7 +108,7 @@ function torSetupByOs(os){
       ["Step 4: Install Agent1c relay", installRelayCmd],
       ["Step 5: Start relay in Tor mode", relayStartTorCmd],
       ["Step 6: Verify relay + Tor", `${relayHealthCmd}\n${torStatusCmd}`],
-      ["Optional: user systemd relay in Tor mode", `mkdir -p ~/.config/systemd/user\ncat > ~/.config/systemd/user/agent1c-relay-tor.service <<'EOF'\n[Unit]\nDescription=Agent1c Local Relay (Tor)\nAfter=network.target\n\n[Service]\nType=simple\nExecStart=%h/.agent1c-relay/agent1c-relay.sh\nRestart=always\nRestartSec=2\nEnvironment=AGENT1C_RELAY_PORT=8766\nEnvironment=AGENT1C_RELAY_HTTP_PROXY=socks5h://127.0.0.1:9050\nEnvironment=AGENT1C_RELAY_ALLOW_ORIGINS=https://agent1c.me,https://www.agent1c.me,http://localhost:8000,http://127.0.0.1:8000\n\n[Install]\nWantedBy=default.target\nEOF\nsystemctl --user daemon-reload\nsystemctl --user enable --now agent1c-relay-tor.service\nsystemctl --user status --no-pager agent1c-relay-tor.service`],
+      ["Optional: user systemd relay in Tor mode", `mkdir -p ~/.config/systemd/user\ncat > ~/.config/systemd/user/agent1c-relay-tor.service <<'EOF'\n[Unit]\nDescription=Agent1c Local Relay (Tor)\nAfter=network.target\n\n[Service]\nType=simple\nExecStart=%h/.agent1c-relay/agent1c-tor-relay.sh\nRestart=always\nRestartSec=2\nEnvironment=AGENT1C_RELAY_ALLOW_ORIGINS=https://agent1c.me,https://www.agent1c.me,http://localhost:8000,http://127.0.0.1:8000\n\n[Install]\nWantedBy=default.target\nEOF\nsystemctl --user daemon-reload\nsystemctl --user enable --now agent1c-relay-tor.service\nsystemctl --user status --no-pager agent1c-relay-tor.service`],
     ],
     caveat: "Tor mode affects relay HTTP fetch path only. Shell commands still run locally without Tor routing.",
   }
@@ -151,7 +151,6 @@ export function torRelayWindowHtml(){
         <div class="agent-setup-intro">
           <div class="agent-setup-title">Tor Relay Setup</div>
           <div class="agent-note">Set up Tor-routed HTTP fetch for Agent1c via the local relay.</div>
-          <div class="agent-note agent-note-warn">Uninstall Shell Relay first before installing the Tor Relay.</div>
           <div class="agent-note agent-note-warn">Linux/macOS only in this version. Run as non-root/non-sudo user.</div>
         </div>
         <div class="agent-device-tabs">
@@ -163,8 +162,8 @@ export function torRelayWindowHtml(){
         <div class="agent-setup-section agent-setup-section-stop">
           <div class="agent-setup-title">Stop / Restart Tor Relay</div>
           <div class="agent-note">If port 8766 is stuck or Tor mode fails, stop listeners and restart in Tor mode.</div>
-          ${codeCard("Stop running relay", "pkill -f \"agent1c-relay.sh\" || true\npkill -f \"socat.*8766\" || true\nfuser -k 8766/tcp 2>/dev/null || true", "stop")}
-          ${codeCard("Restart relay (Tor mode)", "AGENT1C_RELAY_PORT=8766 AGENT1C_RELAY_HTTP_PROXY=socks5h://127.0.0.1:9050 ~/.agent1c-relay/agent1c-relay.sh", "restart")}
+          ${codeCard("Stop running relay", "pkill -f \"agent1c-tor-relay.sh\" || true\npkill -f \"socat.*8766\" || true\nfuser -k 8766/tcp 2>/dev/null || true", "stop")}
+          ${codeCard("Restart relay (Tor mode)", "~/.agent1c-relay/agent1c-tor-relay.sh", "restart")}
         </div>
         <div class="agent-row">
           <button id="torRelayNextBtn" class="btn" type="button">Next: Connect</button>

@@ -934,6 +934,10 @@ Coexistence rule (important):
 - Shell Relay and Tor Relay must be able to run at the same time.
 - Shell Relay default port: `8765`
 - Tor Relay default port: `8766`
+- Relay launcher UX must use distinct wrapper scripts (do not ask users to run the same script in "modes"):
+  - `~/.agent1c-relay/agent1c-shell-relay.sh`
+  - `~/.agent1c-relay/agent1c-tor-relay.sh`
+- Keep one shared relay core (`agent1c-relay-core.sh`) + shared `handler.sh`; wrappers only set env/ports.
 - Do not reuse one relay config object for both windows.
 
 Important:

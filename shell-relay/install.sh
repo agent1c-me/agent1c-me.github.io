@@ -15,11 +15,15 @@ fetch_file(){
   chmod +x "$out"
 }
 
+fetch_file "agent1c-relay-core.sh"
+fetch_file "agent1c-shell-relay.sh"
+fetch_file "agent1c-tor-relay.sh"
 fetch_file "agent1c-relay.sh"
 fetch_file "handler.sh"
 
 cat <<EOF
 [agent1c-relay] installed to: $DEST
-[agent1c-relay] next step:
-  $DEST/agent1c-relay.sh
+[agent1c-relay] next steps:
+  Shell Relay: $DEST/agent1c-shell-relay.sh
+  Tor Relay:   $DEST/agent1c-tor-relay.sh
 EOF

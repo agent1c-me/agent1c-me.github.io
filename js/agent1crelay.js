@@ -77,11 +77,11 @@ function relaySetupByOs(os){
       installTitle: "Step 2: Install relay scripts",
       installCmd,
       startTitle: "Step 3: Start relay",
-      startCmd: "~/.agent1c-relay/agent1c-relay.sh",
+      startCmd: "~/.agent1c-relay/agent1c-shell-relay.sh",
       verifyTitle: "Step 4: Verify relay is alive",
       verifyCmd: healthNoToken,
       persistTitle: "Optional: persist on startup (launchd)",
-      persistCmd: "Create a launchd plist that runs ~/.agent1c-relay/agent1c-relay.sh at login.",
+      persistCmd: "Create a launchd plist that runs ~/.agent1c-relay/agent1c-shell-relay.sh at login.",
       uninstallTitle: "Optional: uninstall relay scripts",
       uninstallCmd: "rm -rf ~/.agent1c-relay",
       caveat: "Run as normal user (not sudo). If browser blocks local private-network requests, use a browser build that allows localhost private-network CORS from HTTPS origin.",
@@ -95,7 +95,7 @@ function relaySetupByOs(os){
       installTitle: "Step 1: Install dependencies in Termux",
       installCmd: "pkg update && pkg install -y curl jq socat",
       startTitle: "Step 2: Install and start relay",
-      startCmd: `${installCmd}\n~/.agent1c-relay/agent1c-relay.sh`,
+      startCmd: `${installCmd}\n~/.agent1c-relay/agent1c-shell-relay.sh`,
       verifyTitle: "Step 3: Verify + browser private-network note",
       verifyCmd: healthNoToken,
       persistTitle: "Optional: persist on startup (Termux)",
@@ -112,7 +112,7 @@ function relaySetupByOs(os){
     installTitle: "Step 2: Install relay scripts",
     installCmd,
     startTitle: "Step 3: Start relay",
-    startCmd: "~/.agent1c-relay/agent1c-relay.sh",
+    startCmd: "~/.agent1c-relay/agent1c-shell-relay.sh",
     verifyTitle: "Step 4: Verify relay is alive",
     verifyCmd: healthNoToken,
     persistTitle: "Optional: persist as user systemd service",
@@ -124,7 +124,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=%h/.agent1c-relay/agent1c-relay.sh
+ExecStart=%h/.agent1c-relay/agent1c-shell-relay.sh
 Restart=always
 RestartSec=2
 Environment=AGENT1C_RELAY_ALLOW_ORIGINS=https://agent1c.me,https://www.agent1c.me,http://localhost:8000,http://127.0.0.1:8000
@@ -185,7 +185,6 @@ export function shellRelayWindowHtml(){
         <div class="agent-setup-intro">
           <div class="agent-setup-title">Shell Relay Setup</div>
           <div class="agent-note">Set up local shell access for Hitomi on this device.</div>
-          <div class="agent-note agent-note-warn">Uninstall Tor Relay first before installing the Shell Relay.</div>
           <div class="agent-note agent-note-warn">Run relay as non-root/non-sudo user.</div>
         </div>
         <div class="agent-device-tabs">
@@ -207,8 +206,8 @@ export function shellRelayWindowHtml(){
         <div class="agent-setup-section agent-setup-section-stop">
           <div class="agent-setup-title">Stop / Restart Relay</div>
           <div class="agent-note">If anything looks broken or port 8765 is stuck, stop all relay listeners and start again.</div>
-          ${codeCard("Stop running relay", "pkill -f \"agent1c-relay.sh\" || true\npkill -f \"socat.*8765\" || true\nfuser -k 8765/tcp 2>/dev/null || true", "stop")}
-          ${codeCard("Restart relay", "~/.agent1c-relay/agent1c-relay.sh", "restart")}
+          ${codeCard("Stop running relay", "pkill -f \"agent1c-shell-relay.sh\" || true\npkill -f \"socat.*8765\" || true\nfuser -k 8765/tcp 2>/dev/null || true", "stop")}
+          ${codeCard("Restart relay", "~/.agent1c-relay/agent1c-shell-relay.sh", "restart")}
         </div>
         <div class="agent-row">
           <button id="relayNextBtn" class="btn" type="button">Next: Connect</button>
