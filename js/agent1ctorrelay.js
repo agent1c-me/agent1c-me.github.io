@@ -151,6 +151,7 @@ export function torRelayWindowHtml(){
         <div class="agent-setup-intro">
           <div class="agent-setup-title">Tor Relay Setup</div>
           <div class="agent-note">Set up Tor-routed HTTP fetch for Agent1c via the local relay.</div>
+          <div class="agent-note agent-note-warn">Uninstall Shell Relay first before installing the Tor Relay.</div>
           <div class="agent-note agent-note-warn">Linux/macOS only in this version. Run as non-root/non-sudo user.</div>
         </div>
         <div class="agent-device-tabs">
@@ -159,6 +160,12 @@ export function torRelayWindowHtml(){
         </div>
         <div class="agent-note">Pick your device, then copy commands.</div>
         <div id="torRelaySetupBody">${renderTorSetupBody("linux")}</div>
+        <div class="agent-setup-section agent-setup-section-stop">
+          <div class="agent-setup-title">Stop / Restart Tor Relay</div>
+          <div class="agent-note">If port 8765 is stuck or Tor mode fails, stop listeners and restart in Tor mode.</div>
+          ${codeCard("Stop running relay", "pkill -f \"agent1c-relay.sh\" || true\npkill -f \"socat.*8765\" || true\nfuser -k 8765/tcp 2>/dev/null || true", "stop")}
+          ${codeCard("Restart relay (Tor mode)", "AGENT1C_RELAY_HTTP_PROXY=socks5h://127.0.0.1:9050 ~/.agent1c-relay/agent1c-relay.sh", "restart")}
+        </div>
         <div class="agent-row">
           <button id="torRelayNextBtn" class="btn" type="button">Next: Connect</button>
         </div>
@@ -365,4 +372,3 @@ export function wireTorRelayDom({ root, els, getRelayConfig, onSaveRelayConfig, 
     }
   })
 }
-

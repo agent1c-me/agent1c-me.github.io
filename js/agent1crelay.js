@@ -185,6 +185,7 @@ export function shellRelayWindowHtml(){
         <div class="agent-setup-intro">
           <div class="agent-setup-title">Shell Relay Setup</div>
           <div class="agent-note">Set up local shell access for Hitomi on this device.</div>
+          <div class="agent-note agent-note-warn">Uninstall Tor Relay first before installing the Shell Relay.</div>
           <div class="agent-note agent-note-warn">Run relay as non-root/non-sudo user.</div>
         </div>
         <div class="agent-device-tabs">
@@ -202,6 +203,12 @@ export function shellRelayWindowHtml(){
             ${codeCard(os.verifyTitle, os.verifyCmd, "verify")}
             <div class="agent-note">${os.caveat}</div>
           </div>
+        </div>
+        <div class="agent-setup-section agent-setup-section-stop">
+          <div class="agent-setup-title">Stop / Restart Relay</div>
+          <div class="agent-note">If anything looks broken or port 8765 is stuck, stop all relay listeners and start again.</div>
+          ${codeCard("Stop running relay", "pkill -f \"agent1c-relay.sh\" || true\npkill -f \"socat.*8765\" || true\nfuser -k 8765/tcp 2>/dev/null || true", "stop")}
+          ${codeCard("Restart relay", "~/.agent1c-relay/agent1c-relay.sh", "restart")}
         </div>
         <div class="agent-row">
           <button id="relayNextBtn" class="btn" type="button">Next: Connect</button>
