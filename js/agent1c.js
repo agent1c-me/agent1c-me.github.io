@@ -3446,6 +3446,7 @@ function wireShellRelayWindowDom(winObj){
       appState.config.relayToken = nextCfg.token
       appState.config.relayTimeoutMs = nextCfg.timeoutMs
       await persistState()
+      publishBrowserRelayState()
       refreshUi()
     },
     setStatus,
@@ -3471,6 +3472,7 @@ function wireTorRelayWindowDom(winObj){
       appState.config.torRelayToken = nextCfg.token
       appState.config.torRelayTimeoutMs = nextCfg.timeoutMs
       await persistState()
+      publishBrowserRelayState()
       refreshUi()
     },
     setStatus,
