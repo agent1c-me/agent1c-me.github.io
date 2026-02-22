@@ -3249,12 +3249,14 @@ function publishBrowserRelayState(){
     const shellRelay = {
       enabled: Boolean(appState.config.relayEnabled),
       baseUrl: String(appState.config.relayBaseUrl || ""),
+      token: String(appState.config.relayToken || ""),
       timeoutMs: Number(appState.config.relayTimeoutMs || 30000),
       updatedAt: Date.now(),
     }
     const torRelay = {
       enabled: Boolean(appState.config.torRelayEnabled),
       baseUrl: String(appState.config.torRelayBaseUrl || ""),
+      token: String(appState.config.torRelayToken || ""),
       timeoutMs: Number(appState.config.torRelayTimeoutMs || 30000),
       updatedAt: Date.now(),
     }

@@ -1129,20 +1129,44 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
             label: "Shell Relay",
             enabled: shell.enabled === true,
             baseUrl: String(shell.baseUrl || "http://127.0.0.1:8765").replace(/\/+$/, ""),
+            token: String(shell.token || ""),
           },
           tor: {
             kind: "tor",
             label: "Tor Relay",
             enabled: tor.enabled === true,
             baseUrl: String(tor.baseUrl || "http://127.0.0.1:8766").replace(/\/+$/, ""),
+            token: String(tor.token || ""),
+          },
+        };
+      }
+    } catch {}
+    try {
+      const shell = window.__agent1cRelayState || {};
+      const tor = window.__agent1cTorRelayState || {};
+      if (shell && typeof shell === "object") {
+        return {
+          shell: {
+            kind: "shell",
+            label: "Shell Relay",
+            enabled: shell.enabled === true,
+            baseUrl: String(shell.baseUrl || "http://127.0.0.1:8765").replace(/\/+$/, ""),
+            token: String(shell.token || ""),
+          },
+          tor: {
+            kind: "tor",
+            label: "Tor Relay",
+            enabled: tor.enabled === true,
+            baseUrl: String(tor.baseUrl || "http://127.0.0.1:8766").replace(/\/+$/, ""),
+            token: String(tor.token || ""),
           },
         };
       }
     } catch {}
     const legacy = getRelayState();
     return {
-      shell: { kind: "shell", label: "Shell Relay", enabled: legacy.enabled, baseUrl: legacy.baseUrl },
-      tor: { kind: "tor", label: "Tor Relay", enabled: false, baseUrl: "http://127.0.0.1:8766" },
+      shell: { kind: "shell", label: "Shell Relay", enabled: legacy.enabled, baseUrl: legacy.baseUrl, token: "" },
+      tor: { kind: "tor", label: "Tor Relay", enabled: false, baseUrl: "http://127.0.0.1:8766", token: "" },
     };
   }
 
@@ -1245,9 +1269,11 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
   async function relayFetch(url, mode, maxBytes, relayOverride){
     const relay = relayOverride || getRelayState();
     if (!relay.enabled) throw new Error("relay disabled");
+    const headers = { "Content-Type": "application/json" };
+    if (relay.token) headers["x-agent1c-token"] = String(relay.token);
     const resp = await fetch(`${relay.baseUrl}/v1/http/fetch`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         url,
         mode: mode || "get",
