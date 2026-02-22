@@ -1375,6 +1375,27 @@
       background: linear-gradient(var(--chrome-top), var(--chrome-bot));
       flex-wrap: wrap;
     }
+    .browser-route-btn{
+      min-width: 28px;
+      width: 28px;
+      padding: 1px 0;
+      text-align: center;
+      line-height: 1;
+      flex: 0 0 auto;
+    }
+    .browser-route-btn.route-hidden{
+      display: none;
+    }
+    .browser-route-btn.route-tor-force{
+      background: #7d4bc6;
+      color: #fff;
+      border-color: #5e33a8;
+      box-shadow: inset 0 0 0 1px #d9c7ff;
+    }
+    .browser-route-btn.route-tor-force:active{
+      background: #6940ab;
+      color: #fff;
+    }
     .field{
       flex: 1 1 180px;
       min-width: 160px;
