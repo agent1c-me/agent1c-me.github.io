@@ -3568,7 +3568,12 @@ function syncOnboardingGuideActivation(){
   if (!onboardingHedgey) return
   const shouldBeActive = !onboardingComplete
   onboardingHedgey.setActive(shouldBeActive)
-  if (!shouldBeActive) return
+  if (!shouldBeActive) {
+    // Keep Hitomi visible after onboarding is done; only the setup guide should stay off.
+    setClippyMode(true)
+    positionClippyAtBottom()
+    return
+  }
   setClippyMode(true)
   positionClippyAtBottom()
   nudgeOnboardingBubble({ compact: false })
