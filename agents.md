@@ -1012,3 +1012,116 @@ To be implemented for proxy browsing (next phase):
   - redirect/canonicalization edge cases
   - additional asset rewrite edge cases
 - `.ai` Cloudflare Worker proxy backend using same proxy contract (browser-side contract should remain shared).
+
+## 23) Refactor Plan (agent1c.js modularization)
+
+### 23.1 Current state snapshot (`agent1c.me`)
+
+- Main runtime file is large (`js/agent1c.js`, ~5.3k lines).
+- It mixes product runtime, UI, providers, tool execution, onboarding/setup hedgehog, relay windows, and workspace bootstrapping.
+- `.me` is structurally simpler than `.ai` in cloud areas, but still dense because it carries:
+  - vault/BYOK logic
+  - setup hedgehog flow
+  - local Telegram polling
+  - relays + Tor relay
+  - rich Hitomi/Clippy UI
+
+### 23.2 Observed module clusters in current `.me` file
+
+#### A. Core utilities + IndexedDB + vault persistence (candidate: `agent1c-core.js`)
+- DOM helpers, formatting, safe parsing
+- IndexedDB stores (`meta`, `secrets`, `config`, `state`, `events`)
+- crypto/vault setup/unlock/lock helpers
+- plaintext->encrypted secret migration
+- `.me`-specific: vault and unencrypted-mode toggles are first-class here
+
+#### B. Provider runtime + validation (candidate: `agent1c-providers.js`)
+- OpenAI / Anthropic / xAI / z.ai / Ollama chat adapters
+- provider normalization / display names / active runtime resolution
+- provider key tests + OpenAI model listing
+- BYOK key reads from local secret storage (core distinction from `.ai`)
+
+#### C. Prompt/tool runtime (candidate: `agent1c-tools-runtime.js`)
+- System prompt builder
+- tool parsing and inline tool-call protocol
+- tool implementations (filesystem/wiki/GitHub/relay/window actions)
+- `providerChatWithTools(...)`
+- Highly shareable with `.ai`, but keep local extraction first to avoid regressions
+
+#### D. Telegram local polling bridge (candidate: `agent1c-telegram-local.js`) [ME-ONLY]
+- Local Telegram token validation/profile/getUpdates/sendMessage
+- local polling loop + routing into local threads
+- bot mention/reply logic
+- This must stay separate from `.ai` cloud Telegram linking/webhook model
+
+#### E. Chat/thread state + message lifecycle (candidate: `agent1c-chatstate.js`)
+- Local thread lifecycle and Chat 1 semantics
+- Telegram thread adapters (local poll side)
+- message append/thinking flags
+
+#### F. Filesystem/doc autosave + upload detection (candidate: `agent1c-docs-files.js`)
+- upload scan/notice
+- docs autosave scheduling
+- notepad gutters and line numbers
+- loop/config autosave scheduling
+
+#### G. Hitomi/Clippy + setup hedgehog onboarding (candidate: `agent1c-hitomi-ui.js`) [ME-SKEWED]
+- setup hedgehog guide rendering/chips/handoff
+- Clippy bubble layout/overlap/hopping/voice push-to-talk
+- Hitomi + Persona desktop icon/folder helpers
+- `.me` onboarding handoff conditions include ANY provider (OpenAI/Anthropic/xAI/z.ai/Ollama) or Skip Setup
+
+#### H. UI rendering + badges + toasts (candidate: `agent1c-ui.js`)
+- `renderChat`, `renderEvents`, event toast UI
+- `refreshUi`, `refreshBadges`
+- relay-state publish for browser integration
+
+#### I. Panel/window HTML + DOM wiring + bootstrap (candidate: `agent1c-panels.js`)
+- HTML factories for agent panels
+- `wire*Dom` functions
+- relay/Tor relay windows
+- workspace creation and persistent state load
+
+### 23.3 `.me`-specific divergence to preserve during refactor
+
+Do not accidentally remove or cloudify these during modularization:
+
+- Vault/BYOK flow (Create Vault, Unlock Vault, encrypted local secrets)
+- Setup hedgehog mode + completion handoff + Skip Setup pill
+- Local provider validation and API key storage UX
+- Local Telegram polling flow (`getUpdates`) and token-based bot profile logic
+- Shell Relay + Tor Relay local setup flows and local script UX
+
+### 23.4 `.me` vs `.ai` refactor boundary (important)
+
+Shared concepts do **not** mean same module implementation yet.
+
+Safe approach:
+- Extract modules within `.me` using stable interfaces first.
+- Extract modules within `.ai` separately.
+- Compare interfaces and only then decide what can be standardized.
+
+Do not force-share:
+- `.me` vault/onboarding code with `.ai` cloud auth/credits code
+- `.me` local Telegram polling with `.ai` webhook/tab-online cloud Telegram relay
+
+### 23.5 Refactor sequencing (safe path)
+
+1. Extract utilities + persistence/vault helpers (pure-ish, low UI risk).
+2. Extract provider adapters + validation.
+3. Extract tool runtime loop.
+4. Extract chat/thread state.
+5. Extract Hitomi/Clippy/setup hedgehog UI cluster.
+6. Extract panel HTML/wiring/bootstrap helpers.
+7. Reduce `agent1c.js` to orchestrator/bootstrap glue.
+
+### 23.6 Success criteria
+
+- `agent1c.js` shrinks materially and reads as composition/bootstrap.
+- No regressions in:
+  - vault/unlock
+  - provider setup (including Ollama handoff)
+  - chat / heartbeat / file-upload notices
+  - Shell Relay / Tor Relay
+  - setup hedgehog -> Hitomi handoff
+- Browser relay state publication remains stable for Hedgey Browser route-toggle logic.
