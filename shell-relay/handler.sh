@@ -425,7 +425,18 @@ proxy_html_rewriter_script(){
       el.setAttribute("data-agent1c-orig-href", full);
       el.setAttribute("href", full);
     });
-    root.querySelectorAll("form[action]").forEach(el => rewriteAttr(el, "action", "page"));
+    root.querySelectorAll("form[action]").forEach(el => {
+      const raw = el.getAttribute("action") || "";
+      if (!raw) return;
+      const full = abs(raw);
+      if (!ABS_RE.test(full)) return;
+      const unwrapped = unwrapProxyTarget(full);
+      if (unwrapped && ABS_RE.test(unwrapped)) {
+        el.setAttribute("action", unwrapped);
+      } else {
+        el.setAttribute("action", full);
+      }
+    });
   }
   function hookClicks(){
     document.addEventListener("click", (event) => {
@@ -452,6 +463,10 @@ proxy_html_rewriter_script(){
       let resolved = "";
       try { resolved = new URL(action, document.baseURI).href; } catch { return false; }
       if (!ABS_RE.test(resolved)) return false;
+      const unwrapped = unwrapProxyTarget(resolved);
+      if (unwrapped && ABS_RE.test(unwrapped)) {
+        resolved = unwrapped;
+      }
       try {
         const fd = new FormData(form);
         const u = new URL(resolved);
