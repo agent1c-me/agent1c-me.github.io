@@ -987,3 +987,28 @@ When porting web proxy features from `.ai`, keep these in sync on `.me`:
 
 Regression lesson:
 - Do not reintroduce browser-side proxy preflight / double-fetch before iframe load (Yahoo regression).
+
+### 22.6 Proxy browsing status (existing vs next)
+
+Existing feature (implemented on `.me` and mirrored from `.ai`):
+- Hedgey Browser route toggle with Shell/Tor modes (`🖧`, `🧅`, purple `🧅`).
+- Shared `Use Experimental Web Proxy` toggle in both relay windows.
+- Relay proxy endpoints:
+  - `/v1/proxy/page`
+  - `/v1/proxy/asset`
+- Browser proxy fallback mode (experimental proxy ON).
+- Canonical proxied link navigation (keep real target URL in browser field).
+- Universal GET form-submit bridge (including scripted submit paths).
+- `srcset` rewriting.
+- CSS `url(...)` and `@import` rewriting.
+- Recursive rewrite guards + canonical form action handling/unwrapping.
+
+To be implemented for proxy browsing (next phase):
+- P2.2 anti-bot detection and HedgeyOS-native warning dialog for proxy-rendered challenge pages (single-fetch only).
+- Proxy status/title UX polish after proxied navigation and form submits.
+- Saved-app proxy correctness hardening (store original URL only, reliable reopen under route modes).
+- More compatibility work:
+  - graceful POST form behavior
+  - redirect/canonicalization edge cases
+  - additional asset rewrite edge cases
+- `.ai` Cloudflare Worker proxy backend using same proxy contract (browser-side contract should remain shared).

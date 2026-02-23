@@ -148,3 +148,40 @@ Open `http://localhost:8000`.
 
 - `.me` vs `.ai` behavior map (sovereign reference): `LOCAL_VS_CLOUD_DIFF.md`
 - Reciprocal map in cloud repo: `../agent1c-ai.github.io/CLOUD_VS_LOCAL_DIFF.md`
+
+## Proxy Browsing Status (Existing vs Next)
+
+### Existing features (implemented)
+
+- Hedgey Browser has relay routing controls with route modes:
+  - `🖧` direct first + Shell Relay fallback
+  - `🧅` direct first + Tor Relay fallback
+  - purple `🧅` Tor-first/force mode
+- Shell Relay (`8765`) and Tor Relay (`8766`) can run at the same time.
+- `Use Experimental Web Proxy` toggle exists in both Shell Relay and Tor Relay windows and stays synced.
+- Relay supports full-proxy endpoints:
+  - `GET /v1/proxy/page`
+  - `GET /v1/proxy/asset`
+- Browser can use proxy page mode as relay fallback (experimental proxy ON).
+- Proxy rewriting currently supports:
+  - canonical link click handoff (browser field stays on real target URL)
+  - universal GET form-submit bridge (including scripted submit paths)
+  - `srcset` rewriting
+  - CSS `url(...)` and `@import` rewriting
+- Proxy hardening already applied:
+  - recursive proxy rewrite guards
+  - canonical form action handling (avoid `/v1/proxy/page?...` without `url=`)
+  - no browser-side double-fetch preflight (Yahoo regression avoided)
+
+### To be implemented for proxy browsing (next phase)
+
+- P2.2 anti-bot detection + HedgeyOS-native warning dialog on proxy path (single-fetch only).
+- Proxy status/title UX polish after proxied navigation and form submits.
+- Saved-app proxy correctness:
+  - always store original URL
+  - reopen via current route mode without blank-app regressions.
+- More compatibility work for complex sites:
+  - graceful POST form behavior
+  - redirect/canonicalization edge cases
+  - additional asset/CSS rewrite edge cases
+- Later (shared with `.ai` design): full Cloudflare Worker proxy backend for managed browsing transport.
