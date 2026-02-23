@@ -191,6 +191,10 @@ export function torRelayWindowHtml(){
           <span>Relay token (optional)</span>
           <input id="torRelayTokenInput" class="field" type="password" placeholder="change-me" />
         </label>
+        <label class="agent-form-label agent-inline-check">
+          <span>Use Experimental Web Proxy</span>
+          <input id="torRelayExperimentalProxyToggle" type="checkbox" />
+        </label>
         <div class="agent-row agent-wrap-row">
           <button id="torRelaySaveBtn" class="btn" type="button">Save Relay Settings</button>
           <button id="torRelayTestBtn" class="btn" type="button">Test Tor Relay</button>
@@ -227,6 +231,7 @@ export function cacheTorRelayElements(byId){
     torRelayTimeoutInput: byId("torRelayTimeoutInput"),
     torRelayBaseUrlInput: byId("torRelayBaseUrlInput"),
     torRelayTokenInput: byId("torRelayTokenInput"),
+    torRelayExperimentalProxyToggle: byId("torRelayExperimentalProxyToggle"),
     torRelaySaveBtn: byId("torRelaySaveBtn"),
     torRelayTestBtn: byId("torRelayTestBtn"),
     torRelayStatus: byId("torRelayStatus"),
@@ -247,13 +252,14 @@ async function testTorRelayStatus(relayConfig){
   return { health, tor }
 }
 
-export function wireTorRelayDom({ root, els, getRelayConfig, onSaveRelayConfig, setStatus, addEvent }){
+export function wireTorRelayDom({ root, els, getRelayConfig, onSaveRelayConfig, getExperimentalWebProxyEnabled, onSetExperimentalWebProxyEnabled, setStatus, addEvent }){
   if (!root) return
   const cfg = normalizeRelayConfig(getRelayConfig?.() || RELAY_DEFAULTS)
   if (els.torRelayEnabledSelect) els.torRelayEnabledSelect.value = cfg.enabled ? "on" : "off"
   if (els.torRelayTimeoutInput) els.torRelayTimeoutInput.value = String(cfg.timeoutMs)
   if (els.torRelayBaseUrlInput) els.torRelayBaseUrlInput.value = cfg.baseUrl
   if (els.torRelayTokenInput) els.torRelayTokenInput.value = cfg.token
+  if (els.torRelayExperimentalProxyToggle) els.torRelayExperimentalProxyToggle.checked = getExperimentalWebProxyEnabled?.() !== false
   if (els.torRelayStatus) els.torRelayStatus.textContent = cfg.enabled ? "Relay enabled (Tor mode expected)." : "Relay disabled."
   const stackEl = root.querySelector(".agent-setup-stack")
 
@@ -310,6 +316,23 @@ export function wireTorRelayDom({ root, els, getRelayConfig, onSaveRelayConfig, 
 
   els.torRelaySaveBtn?.addEventListener("click", async () => {
     try { await saveFromInputs() } catch (err) { setStatus?.(err instanceof Error ? err.message : "Could not save Tor Relay settings") }
+  })
+
+  els.torRelayExperimentalProxyToggle?.addEventListener("change", async () => {
+    try {
+      const enabled = Boolean(els.torRelayExperimentalProxyToggle?.checked)
+      await onSetExperimentalWebProxyEnabled?.(enabled)
+      setStatus?.(enabled ? "Experimental Web Proxy enabled." : "Experimental Web Proxy disabled.")
+    } catch (err) {
+      if (els.torRelayExperimentalProxyToggle) {
+        els.torRelayExperimentalProxyToggle.checked = getExperimentalWebProxyEnabled?.() !== false
+      }
+      setStatus?.(err instanceof Error ? err.message : "Could not update Web Proxy setting")
+    }
+  })
+  window.addEventListener("agent1c:web-proxy-mode-updated", (event) => {
+    const enabled = Boolean(event?.detail?.enabled)
+    if (els.torRelayExperimentalProxyToggle) els.torRelayExperimentalProxyToggle.checked = enabled
   })
 
   els.torRelayTestBtn?.addEventListener("click", async () => {

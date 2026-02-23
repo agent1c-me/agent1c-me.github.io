@@ -235,6 +235,10 @@ export function shellRelayWindowHtml(){
           <span>Relay token (optional)</span>
           <input id="relayWindowTokenInput" class="field" type="password" placeholder="change-me" />
         </label>
+        <label class="agent-form-label agent-inline-check">
+          <span>Use Experimental Web Proxy</span>
+          <input id="relayWindowExperimentalProxyToggle" type="checkbox" />
+        </label>
         <div class="agent-row agent-wrap-row">
           <button id="relayWindowSaveBtn" class="btn" type="button">Save Relay Settings</button>
           <button id="relayWindowTestBtn" class="btn" type="button">Test Relay</button>
@@ -287,6 +291,7 @@ export function cacheShellRelayElements(byId){
     relayWindowTimeoutInput: byId("relayWindowTimeoutInput"),
     relayWindowBaseUrlInput: byId("relayWindowBaseUrlInput"),
     relayWindowTokenInput: byId("relayWindowTokenInput"),
+    relayWindowExperimentalProxyToggle: byId("relayWindowExperimentalProxyToggle"),
     relayWindowSaveBtn: byId("relayWindowSaveBtn"),
     relayWindowTestBtn: byId("relayWindowTestBtn"),
     relayWindowStatus: byId("relayWindowStatus"),
@@ -369,7 +374,7 @@ export async function runShellExecTool({ args, relayConfig, addEvent, excerptFor
   ].join("\n")
 }
 
-export function wireShellRelayDom({ root, els, getRelayConfig, onSaveRelayConfig, setStatus, addEvent }){
+export function wireShellRelayDom({ root, els, getRelayConfig, onSaveRelayConfig, getExperimentalWebProxyEnabled, onSetExperimentalWebProxyEnabled, setStatus, addEvent }){
   // for Codex: when changing relay window interactions, always re-read PHASE1_CONTRACT.md first.
   if (!root) return
   const cfg = normalizeRelayConfig(getRelayConfig?.() || RELAY_DEFAULTS)
@@ -377,6 +382,7 @@ export function wireShellRelayDom({ root, els, getRelayConfig, onSaveRelayConfig
   if (els.relayWindowTimeoutInput) els.relayWindowTimeoutInput.value = String(cfg.timeoutMs)
   if (els.relayWindowBaseUrlInput) els.relayWindowBaseUrlInput.value = cfg.baseUrl
   if (els.relayWindowTokenInput) els.relayWindowTokenInput.value = cfg.token
+  if (els.relayWindowExperimentalProxyToggle) els.relayWindowExperimentalProxyToggle.checked = getExperimentalWebProxyEnabled?.() !== false
   if (els.relayWindowStatus) els.relayWindowStatus.textContent = cfg.enabled ? "Relay enabled." : "Relay disabled."
   const stackEl = root.querySelector(".agent-setup-stack")
 
@@ -442,6 +448,23 @@ export function wireShellRelayDom({ root, els, getRelayConfig, onSaveRelayConfig
     } catch (err) {
       setStatus?.(err instanceof Error ? err.message : "Could not save relay settings")
     }
+  })
+
+  els.relayWindowExperimentalProxyToggle?.addEventListener("change", async () => {
+    try {
+      const enabled = Boolean(els.relayWindowExperimentalProxyToggle?.checked)
+      await onSetExperimentalWebProxyEnabled?.(enabled)
+      setStatus?.(enabled ? "Experimental Web Proxy enabled." : "Experimental Web Proxy disabled.")
+    } catch (err) {
+      if (els.relayWindowExperimentalProxyToggle) {
+        els.relayWindowExperimentalProxyToggle.checked = getExperimentalWebProxyEnabled?.() !== false
+      }
+      setStatus?.(err instanceof Error ? err.message : "Could not update Web Proxy setting")
+    }
+  })
+  window.addEventListener("agent1c:web-proxy-mode-updated", (event) => {
+    const enabled = Boolean(event?.detail?.enabled)
+    if (els.relayWindowExperimentalProxyToggle) els.relayWindowExperimentalProxyToggle.checked = enabled
   })
 
   els.relayWindowTestBtn?.addEventListener("click", async () => {

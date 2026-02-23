@@ -1119,44 +1119,32 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
 
   function getBrowserRelayStates(){
     try {
-      const states = window.__agent1cBrowserRelayStates || null;
-      if (states && typeof states === "object") {
-        const shell = states.shell || {};
-        const tor = states.tor || {};
+      const states = (window.__agent1cBrowserRelayStates && typeof window.__agent1cBrowserRelayStates === "object")
+        ? window.__agent1cBrowserRelayStates
+        : {};
+      const shellState = (states.shell && typeof states.shell === "object")
+        ? states.shell
+        : ((window.__agent1cRelayState && typeof window.__agent1cRelayState === "object") ? window.__agent1cRelayState : {});
+      const torState = (states.tor && typeof states.tor === "object")
+        ? states.tor
+        : ((window.__agent1cTorRelayState && typeof window.__agent1cTorRelayState === "object") ? window.__agent1cTorRelayState : {});
+      if (shellState || torState) {
+        const shell = shellState || {};
+        const tor = torState || {};
+        const shellEnabled = shell.enabled === true || shell.enabled === "true" || shell.enabled === "on";
+        const torEnabled = tor.enabled === true || tor.enabled === "true" || tor.enabled === "on";
         return {
           shell: {
             kind: "shell",
             label: "Shell Relay",
-            enabled: shell.enabled === true,
+            enabled: shellEnabled,
             baseUrl: String(shell.baseUrl || "http://127.0.0.1:8765").replace(/\/+$/, ""),
             token: String(shell.token || ""),
           },
           tor: {
             kind: "tor",
             label: "Tor Relay",
-            enabled: tor.enabled === true,
-            baseUrl: String(tor.baseUrl || "http://127.0.0.1:8766").replace(/\/+$/, ""),
-            token: String(tor.token || ""),
-          },
-        };
-      }
-    } catch {}
-    try {
-      const shell = window.__agent1cRelayState || {};
-      const tor = window.__agent1cTorRelayState || {};
-      if (shell && typeof shell === "object") {
-        return {
-          shell: {
-            kind: "shell",
-            label: "Shell Relay",
-            enabled: shell.enabled === true,
-            baseUrl: String(shell.baseUrl || "http://127.0.0.1:8765").replace(/\/+$/, ""),
-            token: String(shell.token || ""),
-          },
-          tor: {
-            kind: "tor",
-            label: "Tor Relay",
-            enabled: tor.enabled === true,
+            enabled: torEnabled,
             baseUrl: String(tor.baseUrl || "http://127.0.0.1:8766").replace(/\/+$/, ""),
             token: String(tor.token || ""),
           },
@@ -1266,6 +1254,78 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     return plain.slice(0, 120);
   }
 
+  function isLikelyAntiBotPage(page){
+    const status = Number(page?.status || 0);
+    const body = String(page?.body || "").toLowerCase();
+    const title = String(page?.title || "").toLowerCase();
+    const merged = `${title}\n${body}`;
+    const veryStrongSignals = [
+      "/cdn-cgi/challenge-platform/",
+      "cf-chl",
+      "datadome",
+      "perimeterx",
+      "px-captcha",
+      "__cf_bm",
+      "checking your browser before accessing",
+      "security challenge",
+    ];
+    const strongSignals = [
+      "verify you are human",
+      "verify you're human",
+      "are you human",
+      "unusual traffic",
+      "automated queries",
+      "access denied",
+      "request blocked",
+      "captcha",
+      "hcaptcha",
+      "recaptcha",
+      "cloudflare",
+      "bot detection",
+    ];
+    const veryStrongHit = veryStrongSignals.some(sig => merged.includes(sig));
+    if (veryStrongHit) return true;
+    const strongCount = strongSignals.reduce((count, sig) => count + (merged.includes(sig) ? 1 : 0), 0);
+    const statusBlocked = [401, 403, 429, 503].includes(status);
+    const titleLooksLikeChallenge =
+      title.includes("attention required") ||
+      title.includes("just a moment") ||
+      title.includes("security check") ||
+      title.includes("verify you are human");
+    if (statusBlocked && strongCount >= 1) return true;
+    if (statusBlocked && (merged.includes("blocked") || merged.includes("forbidden") || merged.includes("denied"))) return true;
+    if (titleLooksLikeChallenge && strongCount >= 1) return true;
+    return false;
+  }
+
+  function showBrowserAntiBotWarning(win, targetUrl){
+    const wrap = win?.querySelector?.(".browserwrap");
+    if (!wrap) return;
+    wrap.querySelectorAll(".browser-antibot-warning").forEach(node => node.remove());
+    const host = (() => {
+      try { return new URL(String(targetUrl || "")).hostname; } catch { return String(targetUrl || "this site"); }
+    })();
+    const box = document.createElement("div");
+    box.className = "browser-antibot-warning";
+    box.innerHTML = `
+      <div class="browser-antibot-title">Site Blocked Automated Browsing</div>
+      <div class="browser-antibot-copy">
+        ${host} is enforcing anti-bot protections, so Agent1c cannot render this page in-browser.
+      </div>
+      <div class="browser-antibot-actions">
+        <button class="btn" type="button" data-open-tab>Open in New Tab</button>
+        <button class="btn" type="button" data-cancel>Cancel</button>
+      </div>
+    `;
+    const close = () => box.remove();
+    box.querySelector("[data-open-tab]")?.addEventListener("click", () => {
+      try { window.open(String(targetUrl || ""), "_blank", "noopener,noreferrer"); } catch {}
+      close();
+    });
+    box.querySelector("[data-cancel]")?.addEventListener("click", close);
+    wrap.appendChild(box);
+  }
+
   async function relayFetch(url, mode, maxBytes, relayOverride){
     const relay = relayOverride || getRelayState();
     if (!relay.enabled) throw new Error("relay disabled");
@@ -1289,7 +1349,31 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     const body = String(page?.body || "");
     const contentType = String(page?.contentType || "").toLowerCase();
     if (contentType.includes("text/html") || body.trim().startsWith("<!doctype") || body.trim().startsWith("<html")) {
-      const html = `<base href="${targetUrl}">\n${body}`;
+      const relayNavBridge = `<script>
+(() => {
+  try {
+    document.addEventListener("click", (event) => {
+      const t = event.target;
+      if (!(t instanceof Element)) return;
+      const anchor = t.closest("a[href]");
+      if (!anchor) return;
+      if (event.defaultPrevented) return;
+      if (event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const hrefRaw = anchor.getAttribute("href") || "";
+      if (!hrefRaw || hrefRaw.startsWith("#")) return;
+      const target = (anchor.getAttribute("target") || "").toLowerCase();
+      if (target === "_blank") return;
+      let resolved = "";
+      try { resolved = new URL(hrefRaw, document.baseURI).href; } catch { return; }
+      if (!/^https?:/i.test(resolved)) return;
+      event.preventDefault();
+      window.parent?.postMessage({ type: "agent1c:relay-nav", href: resolved }, "*");
+    }, true);
+  } catch {}
+})();
+</script>`;
+      const html = `<base href="${targetUrl}">\n${relayNavBridge}\n${body}`;
       iframe.removeAttribute("srcdoc");
       iframe.src = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
       return;
@@ -1303,9 +1387,25 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     iframe.src = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
   }
 
+  function relayProxyPageUrl(relay, targetUrl){
+    const base = String(relay?.baseUrl || "").replace(/\/+$/, "");
+    const u = new URL(`${base}/v1/proxy/page`);
+    u.searchParams.set("url", String(targetUrl || ""));
+    if (relay?.token) u.searchParams.set("token", String(relay.token));
+    return u.toString();
+  }
+
+  function experimentalWebProxyEnabled(){
+    try {
+      return window.__agent1cExperimentalWebProxyEnabled !== false;
+    } catch {}
+    return true;
+  }
+
   async function loadUrlIntoIframe(iframe, rawUrl, opts = {}){
     const setStatus = typeof opts.onStatus === "function" ? opts.onStatus : () => {};
     const onRelayPage = typeof opts.onRelayPage === "function" ? opts.onRelayPage : null;
+    const onAntiBotBlock = typeof opts.onAntiBotBlock === "function" ? opts.onAntiBotBlock : null;
     const raw = String(rawUrl || "").trim();
     if (!raw) {
       setStatus("Enter a URL");
@@ -1330,7 +1430,7 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
         const relayToUse = relayChoice.relay;
         if (relayMode === 2 && !relayToUse) {
           setStatus("Tor Relay is not active.");
-          return { ok: false, finalUrl: norm, title: "", viaRelay: false };
+          return { ok: false, finalUrl: norm, title: "" };
         }
         const forceRelay = relayMode === 2 && relayToUse && relayToUse.kind === "tor";
         let shouldUseRelayBody = !!forceRelay;
@@ -1340,18 +1440,30 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
           shouldUseRelayBody = !!(probe.ok && isFrameBlockedByHeaders(probe.headers || ""));
         }
         if (relayToUse && shouldUseRelayBody) {
-          const page = await relayFetch(norm, "get", opts.maxBytes || 300000, relayToUse);
-          if (page.ok) {
-            openedViaRelay = true;
-            const resolvedUrl = String(page.finalUrl || norm);
-            renderRelayBody(iframe, resolvedUrl, page);
+          openedViaRelay = true;
+          if (experimentalWebProxyEnabled()) {
+            const proxyUrl = relayProxyPageUrl(relayToUse, norm);
+            iframe.removeAttribute("srcdoc");
+            iframe.src = proxyUrl;
             setStatus(forceRelay
-              ? "Opened via Tor Relay"
-              : `Opened via ${relayToUse.kind === "tor" ? "Tor Relay" : "Shell Relay"} fallback`);
+              ? "Opened via Tor Relay proxy"
+              : `Opened via ${relayToUse.kind === "tor" ? "Tor Relay" : "Shell Relay"} proxy`);
+          } else {
+            const page = await relayFetch(norm, "get", opts.maxBytes || 500000, relayToUse);
+            if (!(page && page.ok)) throw new Error("relay body fetch failed");
+            if (isLikelyAntiBotPage(page)) {
+              onAntiBotBlock?.({ url: norm, relayKind: relayToUse.kind, page });
+              setStatus("Blocked by anti-bot protections");
+              return { ok: false, finalUrl: norm, title: "", viaRelay: true };
+            }
+            renderRelayBody(iframe, norm, page);
+            setStatus(forceRelay
+              ? "Opened via Tor Relay (legacy relay view)"
+              : `Opened via ${relayToUse.kind === "tor" ? "Tor Relay" : "Shell Relay"} (legacy relay view)`);
             const title = extractHtmlTitle(page.body || "");
-            if (onRelayPage) onRelayPage({ page, title, finalUrl: resolvedUrl });
-            return { ok: true, finalUrl: resolvedUrl, title, viaRelay: true };
+            if (onRelayPage) onRelayPage({ page, title, finalUrl: norm });
           }
+          return { ok: true, finalUrl: norm, title: "", viaRelay: true };
         }
       } catch {
         // Direct path fallback below.
@@ -1448,6 +1560,17 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
           onRelayPage: ({ title }) => {
             lastResolvedTitle = title || "";
           },
+          onAntiBotBlock: ({ url }) => {
+            showBrowserAntiBotWarning(win, url);
+            try {
+              window.dispatchEvent(new CustomEvent("agent1c:browser-antibot-blocked", {
+                detail: {
+                  url: String(url || ""),
+                  source: String(opts?.openSource || "manual"),
+                },
+              }));
+            } catch {}
+          },
         });
         if (seq !== navSeq) return;
         if (result?.ok) {
@@ -1461,6 +1584,7 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
           lastResolvedUrl = norm;
           lastResolvedTitle = "";
         }
+        return result || { ok: false, finalUrl: normalizedBrowserUrl(raw), title: "", viaRelay: false };
       }
       if (!opts?.noHistory) {
         const val = field.value;
@@ -1470,6 +1594,7 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
           historyIndex = historyStack.length - 1;
         }
       }
+      return { ok: true, finalUrl: String(field.value || ""), title: String(lastResolvedTitle || ""), viaRelay: false };
     }
 
     goBtn.addEventListener("click", () => { setUrl(field.value); });
@@ -1495,6 +1620,19 @@ export function createWindowManager({ desktop, iconLayer, templates, openWindows
     });
     field.addEventListener("focus", () => field.select());
     field.addEventListener("click", () => field.select());
+
+    window.addEventListener("message", (event) => {
+      if (event.source !== iframe.contentWindow) return;
+      const data = event.data || {};
+      if (String(data.type || "") !== "agent1c:relay-nav") return;
+      const href = String(data.href || "").trim();
+      if (!href) return;
+      setUrl(href);
+    });
+    const stForNav = state.get(String(win.dataset.id || ""));
+    if (stForNav) {
+      stForNav.browserNavigate = setUrl;
+    }
 
     if (backBtn) {
       backBtn.addEventListener("click", () => {

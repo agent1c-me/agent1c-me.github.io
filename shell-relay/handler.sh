@@ -68,6 +68,26 @@ send_json(){
   printf "\r\n%s" "$body"
 }
 
+send_file_response(){
+  code="$1"
+  ctype="$2"
+  file="$3"
+  [ -f "$file" ] || { send_error 500 "missing response file"; return; }
+  printf "HTTP/1.1 %s %s\r\n" "$code" "$(status_text "$code")"
+  if [ -n "${ORIGIN:-}" ] && in_allowlist "$ORIGIN"; then
+    printf "Access-Control-Allow-Origin: %s\r\n" "$ORIGIN"
+    printf "Vary: Origin\r\n"
+    printf "Access-Control-Allow-Headers: Content-Type, x-agent1c-token\r\n"
+    printf "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
+    printf "Access-Control-Allow-Private-Network: true\r\n"
+  fi
+  printf "Content-Type: %s\r\n" "${ctype:-application/octet-stream}"
+  printf "Content-Length: %s\r\n" "$(wc -c < "$file" | tr -d ' ')"
+  printf "Cache-Control: no-store\r\n"
+  printf "\r\n"
+  cat "$file"
+}
+
 send_error(){
   code="$1"
   msg="$2"
@@ -98,6 +118,38 @@ run_curl(){
   else
     curl "$@"
   fi
+}
+
+url_decode(){
+  raw="$1"
+  [ -n "$raw" ] || { printf ""; return; }
+  printf "%s" "$raw" | jq -Rr '
+    gsub("\\+"; " ")
+    | gsub("%(?<h>[0-9A-Fa-f]{2})"; "\\u00\(.h)")
+    | ("\"" + . + "\"")
+    | fromjson
+  '
+}
+
+query_param(){
+  key="$1"
+  query="$2"
+  old_ifs="$IFS"
+  IFS='&'
+  for pair in $query; do
+    name="${pair%%=*}"
+    val=""
+    if [ "${pair#*=}" != "$pair" ]; then
+      val="${pair#*=}"
+    fi
+    if [ "$(url_decode "$name")" = "$key" ]; then
+      IFS="$old_ifs"
+      url_decode "$val"
+      return 0
+    fi
+  done
+  IFS="$old_ifs"
+  return 1
 }
 
 run_shell_command(){
@@ -255,6 +307,343 @@ run_http_fetch(){
     '{ok:true,mode:"get",status:$status,finalUrl:$finalUrl,contentType:$contentType,xFrameOptions:$xFrameOptions,csp:$csp,truncated:$truncated,headers:$headers,body:$body}'
 }
 
+proxy_asset_fetch_to_files(){
+  target_url="$1"
+  headers_file="$2"
+  body_file="$3"
+  effective_file="$4"
+
+  case "$target_url" in
+    http://*|https://*) ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  : > "$headers_file"
+  : > "$body_file"
+  : > "$effective_file"
+
+  if run_curl -L -sS --max-time "$DEFAULT_FETCH_TIMEOUT_S" \
+    -A "Agent1cRelay/1.0" \
+    -D "$headers_file" \
+    -o "$body_file" \
+    -w "%{url_effective}" \
+    "$target_url" >"$effective_file" 2>/dev/null; then
+    return 0
+  fi
+  return 1
+}
+
+proxy_html_rewriter_script(){
+  cat <<'EOF'
+<script>
+(() => {
+  const selfUrl = new URL(location.href);
+  const token = selfUrl.searchParams.get("token") || "";
+  const pagePath = selfUrl.pathname;
+  const assetPath = pagePath.replace(/\/page$/, "/asset");
+  const pageBase = new URL(pagePath, location.origin);
+  const assetBase = new URL(assetPath, location.origin);
+  const ABS_RE = /^https?:/i;
+  function isProxyUrl(u){
+    try {
+      const x = new URL(String(u || ""), location.href);
+      if (x.origin !== location.origin) return false;
+      return x.pathname === pagePath || x.pathname === assetPath;
+    } catch {
+      return false;
+    }
+  }
+  function unwrapProxyTarget(u){
+    try {
+      const x = new URL(String(u || ""), location.href);
+      if (x.origin !== location.origin) return "";
+      if (x.pathname !== pagePath && x.pathname !== assetPath) return "";
+      return x.searchParams.get("url") || "";
+    } catch {
+      return "";
+    }
+  }
+  function proxied(kind, absoluteUrl){
+    const base = new URL(kind === "page" ? pageBase : assetBase);
+    base.searchParams.set("url", absoluteUrl);
+    if (token) base.searchParams.set("token", token);
+    return base.toString();
+  }
+  function abs(raw){
+    try { return new URL(raw, document.baseURI).href; } catch { return ""; }
+  }
+  function rewriteAttr(el, attr, kind){
+    const raw = el.getAttribute(attr);
+    if (!raw) return;
+    if (raw.startsWith("data:") || raw.startsWith("blob:") || raw.startsWith("javascript:") || raw.startsWith("#")) return;
+    const full = abs(raw);
+    if (!ABS_RE.test(full)) return;
+    if (isProxyUrl(full)) return;
+    el.setAttribute(attr, proxied(kind, full));
+  }
+  function rewriteSrcsetAttr(el, attr){
+    const raw = el.getAttribute(attr);
+    if (!raw) return;
+    const rewritten = raw.split(",").map(part => {
+      const seg = String(part || "");
+      const trimmed = seg.trim();
+      if (!trimmed) return seg;
+      const m = trimmed.match(/^(\S+)([\s\S]*)$/);
+      if (!m) return seg;
+      const urlRaw = m[1];
+      const rest = m[2] || "";
+      if (urlRaw.startsWith("data:") || urlRaw.startsWith("blob:") || urlRaw.startsWith("javascript:") || urlRaw.startsWith("#")) return seg;
+      const full = abs(urlRaw);
+      if (!ABS_RE.test(full)) return seg;
+      if (isProxyUrl(full)) return seg;
+      return `${proxied("asset", full)}${rest}`;
+    }).join(", ");
+    el.setAttribute(attr, rewritten);
+  }
+  function rewriteNode(root){
+    root.querySelectorAll("img[src],source[src],audio[src],video[src],script[src],iframe[src],embed[src],track[src]").forEach(el => rewriteAttr(el, "src", "asset"));
+    root.querySelectorAll("img[srcset],source[srcset]").forEach(el => rewriteSrcsetAttr(el, "srcset"));
+    root.querySelectorAll("link[href]").forEach(el => {
+      const rel = (el.getAttribute("rel") || "").toLowerCase();
+      rewriteAttr(el, "href", rel.includes("stylesheet") || rel.includes("icon") || rel.includes("preload") ? "asset" : "page");
+    });
+    root.querySelectorAll("a[href]").forEach(el => {
+      const raw = el.getAttribute("href") || "";
+      if (!raw || raw.startsWith("#") || raw.startsWith("mailto:") || raw.startsWith("tel:")) return;
+      const full = abs(raw);
+      if (!ABS_RE.test(full)) return;
+      const unwrapped = unwrapProxyTarget(full);
+      if (unwrapped && ABS_RE.test(unwrapped)) {
+        if (!el.getAttribute("data-agent1c-orig-href")) {
+          el.setAttribute("data-agent1c-orig-href", unwrapped);
+        }
+        el.setAttribute("href", unwrapped);
+        return;
+      }
+      el.setAttribute("data-agent1c-orig-href", full);
+      el.setAttribute("href", full);
+    });
+    root.querySelectorAll("form[action]").forEach(el => rewriteAttr(el, "action", "page"));
+  }
+  function hookClicks(){
+    document.addEventListener("click", (event) => {
+      const t = event.target;
+      if (!(t instanceof Element)) return;
+      const anchor = t.closest("a[href]");
+      if (!anchor) return;
+      if (event.defaultPrevented) return;
+      if (event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const orig = anchor.getAttribute("data-agent1c-orig-href") || "";
+      if (!ABS_RE.test(orig)) return;
+      event.preventDefault();
+      try { window.parent?.postMessage({ type: "agent1c:relay-nav", href: orig }, "*"); } catch {}
+    }, true);
+  }
+  function hookForms(){
+    function submitFormToParent(form){
+      if (!(form instanceof HTMLFormElement)) return false;
+      const method = String(form.getAttribute("method") || "get").toLowerCase();
+      if (method !== "get") return false;
+      let action = form.getAttribute("action") || "";
+      if (!action) action = document.baseURI || location.href;
+      let resolved = "";
+      try { resolved = new URL(action, document.baseURI).href; } catch { return false; }
+      if (!ABS_RE.test(resolved)) return false;
+      try {
+        const fd = new FormData(form);
+        const u = new URL(resolved);
+        u.search = "";
+        for (const [k, v] of fd.entries()) {
+          if (typeof v !== "string") continue;
+          u.searchParams.append(String(k), v);
+        }
+        window.parent?.postMessage({ type: "agent1c:relay-nav", href: u.toString() }, "*");
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    document.addEventListener("submit", (event) => {
+      const t = event.target;
+      if (!(t instanceof HTMLFormElement)) return;
+      if (event.defaultPrevented) return;
+      if (submitFormToParent(t)) event.preventDefault();
+    }, true);
+    try {
+      const nativeSubmit = HTMLFormElement.prototype.submit;
+      if (!HTMLFormElement.prototype.__agent1cPatchedSubmit) {
+        Object.defineProperty(HTMLFormElement.prototype, "__agent1cPatchedSubmit", { value: true, configurable: true });
+        HTMLFormElement.prototype.submit = function(){
+          if (submitFormToParent(this)) return;
+          return nativeSubmit.call(this);
+        };
+      }
+      const nativeRequestSubmit = HTMLFormElement.prototype.requestSubmit;
+      if (typeof nativeRequestSubmit === "function" && !HTMLFormElement.prototype.__agent1cPatchedRequestSubmit) {
+        Object.defineProperty(HTMLFormElement.prototype, "__agent1cPatchedRequestSubmit", { value: true, configurable: true });
+        HTMLFormElement.prototype.requestSubmit = function(...args){
+          if (submitFormToParent(this)) return;
+          return nativeRequestSubmit.apply(this, args);
+        };
+      }
+    } catch {}
+  }
+  rewriteNode(document);
+  hookClicks();
+  hookForms();
+  try {
+    let queued = false;
+    const rerun = () => {
+      queued = false;
+      rewriteNode(document);
+    };
+    const mo = new MutationObserver(() => {
+      if (queued) return;
+      queued = true;
+      (window.requestAnimationFrame || window.setTimeout)(rerun, 16);
+    });
+    mo.observe(document.documentElement || document.body, { childList: true, subtree: true });
+  } catch {}
+})();
+</script>
+EOF
+}
+
+rewrite_proxy_css_file(){
+  css_base_url="$1"
+  token_param="$2"
+  in_file="$3"
+  out_file="$4"
+  command -v python3 >/dev/null 2>&1 || return 1
+  python3 - "$css_base_url" "$token_param" "$in_file" "$out_file" <<'PY'
+import re, sys
+from urllib.parse import urljoin, quote
+
+base = sys.argv[1]
+token = sys.argv[2]
+in_file = sys.argv[3]
+out_file = sys.argv[4]
+
+with open(in_file, "r", encoding="utf-8", errors="ignore") as f:
+    css = f.read()
+
+def proxied(url: str) -> str:
+    u = url.strip()
+    if not u or u.startswith("#"):
+        return u
+    lu = u.lower()
+    if lu.startswith(("data:", "blob:", "javascript:")):
+        return u
+    if "/v1/proxy/asset?" in u or "/v1/proxy/page?" in u:
+        return u
+    absu = urljoin(base, u)
+    if "/v1/proxy/asset?" in absu or "/v1/proxy/page?" in absu:
+        return u
+    qp = quote(absu, safe="")
+    if token:
+        return f"/v1/proxy/asset?url={qp}&token={quote(token, safe='')}"
+    return f"/v1/proxy/asset?url={qp}"
+
+def repl_url(m):
+    prefix = m.group(1)
+    quotech = m.group(2) or ""
+    url = m.group(3) or ""
+    suffix = m.group(4)
+    return f"{prefix}{quotech}{proxied(url)}{quotech}{suffix}"
+
+css = re.sub(r'(url\(\s*)(["\']?)([^)"\']+)(["\']?\s*\))', repl_url, css, flags=re.I)
+
+def repl_import(m):
+    prefix = m.group(1)
+    quotech = m.group(2) or ""
+    url = m.group(3) or ""
+    suffix = m.group(4)
+    return f"{prefix}{quotech}{proxied(url)}{quotech}{suffix}"
+
+css = re.sub(r'(@import\s+)(["\'])([^"\']+)(["\'])', repl_import, css, flags=re.I)
+
+with open(out_file, "w", encoding="utf-8") as f:
+    f.write(css)
+PY
+}
+
+run_proxy_page_response(){
+  target_url="$1"
+  token_param="$2"
+  case "$target_url" in
+    *"/v1/proxy/page"*|*"/v1/proxy/asset"*)
+      send_error 400 "recursive proxy target"
+      return
+      ;;
+  esac
+  resp_json="$(run_http_fetch "$target_url" "get" 2000000)"
+  ok="$(printf "%s" "$resp_json" | jq -r '.ok // false' 2>/dev/null || printf "false")"
+  if [ "$ok" != "true" ]; then
+    send_error 502 "proxy page fetch failed"
+    return
+  fi
+  final_url="$(printf "%s" "$resp_json" | jq -r '.finalUrl // ""')"
+  content_type="$(printf "%s" "$resp_json" | jq -r '.contentType // "text/plain; charset=utf-8"')"
+  page_body_file="$TMP_DIR/proxy-page-body.txt"
+  page_html_file="$TMP_DIR/proxy-page.html"
+  printf "%s" "$resp_json" | jq -r '.body // ""' > "$page_body_file"
+
+  if printf "%s" "$content_type" | grep -iq "text/html"; then
+    base_html="$(printf "%s" "$final_url" | jq -Rr @html)"
+    printf '<!doctype html><html><head><meta charset="utf-8"><base href="%s"></head><body>' "$base_html" > "$page_html_file"
+    proxy_html_rewriter_script >> "$page_html_file"
+    cat "$page_body_file" >> "$page_html_file"
+    printf '</body></html>' >> "$page_html_file"
+    send_file_response 200 "text/html; charset=utf-8" "$page_html_file"
+    return
+  fi
+
+  escaped_body="$(jq -Rs @html < "$page_body_file")"
+  title_text="$(printf "%s" "$final_url" | jq -Rr @html)"
+  {
+    printf '<!doctype html><html><head><meta charset="utf-8"><title>Agent1c Proxy</title></head><body style="font-family:monospace;padding:12px">'
+    printf '<div style="margin-bottom:8px;color:#666">Proxied non-HTML response: %s</div>' "$title_text"
+    printf '<pre style="white-space:pre-wrap">%s</pre>' "$escaped_body"
+    printf '</body></html>'
+  } > "$page_html_file"
+  send_file_response 200 "text/html; charset=utf-8" "$page_html_file"
+}
+
+run_proxy_asset_response(){
+  target_url="$1"
+  token_param="$2"
+  case "$target_url" in
+    *"/v1/proxy/page"*|*"/v1/proxy/asset"*)
+      send_error 400 "recursive proxy target"
+      return
+      ;;
+  esac
+  headers_file="$TMP_DIR/proxy-asset.headers.txt"
+  body_file="$TMP_DIR/proxy-asset.body.bin"
+  effective_file="$TMP_DIR/proxy-asset.effective.txt"
+  if ! proxy_asset_fetch_to_files "$target_url" "$headers_file" "$body_file" "$effective_file"; then
+    send_error 502 "proxy asset fetch failed"
+    return
+  fi
+  status_code="$(awk 'BEGIN{code=200} /^HTTP\// {code=$2} END{print code}' "$headers_file")"
+  [ -n "$status_code" ] || status_code=200
+  content_type="$(header_value "$headers_file" "Content-Type")"
+  [ -n "$content_type" ] || content_type="application/octet-stream"
+  if printf "%s" "$content_type" | grep -iq "text/css"; then
+    css_rewritten_file="$TMP_DIR/proxy-asset.css.rewritten"
+    final_asset_url="$(cat "$effective_file" 2>/dev/null || true)"
+    [ -n "$final_asset_url" ] || final_asset_url="$target_url"
+    if rewrite_proxy_css_file "$final_asset_url" "$token_param" "$body_file" "$css_rewritten_file"; then
+      send_file_response "$status_code" "$content_type" "$css_rewritten_file"
+      return
+    fi
+  fi
+  send_file_response "$status_code" "$content_type" "$body_file"
+}
+
 REQUEST_LINE=""
 if ! IFS= read -r REQUEST_LINE; then
   exit 0
@@ -263,10 +652,19 @@ REQUEST_LINE="$(trim_cr "$REQUEST_LINE")"
 set -- $REQUEST_LINE
 METHOD="${1:-}"
 PATH_ONLY="${2:-/}"
+RAW_PATH="$PATH_ONLY"
+QUERY_STRING=""
+case "$RAW_PATH" in
+  *\?*)
+    PATH_ONLY="${RAW_PATH%%\?*}"
+    QUERY_STRING="${RAW_PATH#*\?}"
+    ;;
+esac
 
 CONTENT_LENGTH=0
 ORIGIN=""
 TOKEN_HEADER=""
+TOKEN_QUERY=""
 
 while IFS= read -r line; do
   line="$(trim_cr "$line")"
@@ -279,6 +677,10 @@ while IFS= read -r line; do
     x-agent1c-token) TOKEN_HEADER="$header_value" ;;
   esac
 done
+
+if [ -n "$QUERY_STRING" ]; then
+  TOKEN_QUERY="$(query_param "token" "$QUERY_STRING" || true)"
+fi
 
 BODY_FILE="$TMP_DIR/body.json"
 : > "$BODY_FILE"
@@ -295,12 +697,19 @@ if [ "$METHOD" = "OPTIONS" ]; then
   exit 0
 fi
 
-if ! in_allowlist "$ORIGIN"; then
-  send_error 403 "origin not allowed"
-  exit 0
+if [ -n "$ORIGIN" ]; then
+  if ! in_allowlist "$ORIGIN"; then
+    send_error 403 "origin not allowed"
+    exit 0
+  fi
 fi
 
-if [ -n "$TOKEN" ] && [ "$TOKEN" != "$TOKEN_HEADER" ]; then
+AUTH_TOKEN="$TOKEN_HEADER"
+if [ -z "$AUTH_TOKEN" ] && [ -n "$TOKEN_QUERY" ]; then
+  AUTH_TOKEN="$TOKEN_QUERY"
+fi
+
+if [ -n "$TOKEN" ] && [ "$TOKEN" != "$AUTH_TOKEN" ]; then
   send_error 401 "invalid token"
   exit 0
 fi
@@ -376,6 +785,26 @@ if [ "$METHOD" = "POST" ] && [ "$PATH_ONLY" = "/v1/http/fetch" ]; then
   fi
   body="$(run_http_fetch "$target_url" "$mode" "$max_bytes")"
   send_json 200 "$body"
+  exit 0
+fi
+
+if [ "$METHOD" = "GET" ] && [ "$PATH_ONLY" = "/v1/proxy/page" ]; then
+  target_url="$(query_param "url" "$QUERY_STRING" || true)"
+  if [ -z "$target_url" ]; then
+    send_error 400 "missing url"
+    exit 0
+  fi
+  run_proxy_page_response "$target_url" "$TOKEN_QUERY"
+  exit 0
+fi
+
+if [ "$METHOD" = "GET" ] && [ "$PATH_ONLY" = "/v1/proxy/asset" ]; then
+  target_url="$(query_param "url" "$QUERY_STRING" || true)"
+  if [ -z "$target_url" ]; then
+    send_error 400 "missing url"
+    exit 0
+  fi
+  run_proxy_asset_response "$target_url" "$TOKEN_QUERY"
   exit 0
 fi
 

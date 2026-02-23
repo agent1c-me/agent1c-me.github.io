@@ -974,3 +974,16 @@ When porting to `../agent1c-ai.github.io`:
    - Both relays can run simultaneously (`8765` + `8766`)
    - Browser asks which relay to use when both are enabled
    - Shell exec unchanged
+
+### 22.5 Web proxy parity note (`.ai` -> `.me`)
+
+When porting web proxy features from `.ai`, keep these in sync on `.me`:
+- relay endpoints: `/v1/proxy/page`, `/v1/proxy/asset`
+- browser proxy fallback + route-toggle behavior
+- canonical proxied link navigation (real target URL in browser field)
+- GET form-submit bridge (including scripted `form.submit()` / `requestSubmit()`)
+- CSS `url(...)` and `srcset` rewriting
+- shared `Use Experimental Web Proxy` toggle across Shell Relay and Tor Relay windows
+
+Regression lesson:
+- Do not reintroduce browser-side proxy preflight / double-fetch before iframe load (Yahoo regression).
