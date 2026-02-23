@@ -2325,6 +2325,12 @@
 .clippy-chip.secondary{
   opacity: 0.86;
 }
+.clippy-chip.danger{
+  background: #ffd9de;
+  border-color: #d26a76;
+  color: #8d1f2c;
+  font-weight: 700;
+}
 .clippy-form{
   display: grid;
   grid-template-columns: 1fr auto;

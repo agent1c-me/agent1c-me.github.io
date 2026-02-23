@@ -2562,9 +2562,11 @@ function renderOnboardingChips(){
     const klass = ["clippy-chip", cls].filter(Boolean).join(" ")
     return `<button class="${escapeHtml(klass)}" data-pill-id="${escapeHtml(pill.id)}" type="button">${escapeHtml(pill.label)}</button>`
   }
+  const skipSetupPill = { id: "pill_skip_setup_force", label: "Skip Setup" }
   const primaryHtml = primary.map(p => mk(p)).join("")
   const secondaryHtml = secondary.map(p => mk(p, "secondary")).join("")
-  const html = [primaryHtml, secondaryHtml].filter(Boolean).join("")
+  const dangerHtml = mk(skipSetupPill, "danger")
+  const html = [primaryHtml, secondaryHtml, dangerHtml].filter(Boolean).join("")
   clippyUi.chips.innerHTML = html
   clippyUi.chips.classList.toggle("clippy-hidden", !html)
 }
@@ -2823,6 +2825,18 @@ function ensureClippyAssistant(){
     const pillId = String(btn.getAttribute("data-pill-id") || "").trim()
     if (!pillId) return
     markClippyActivity()
+    if (pillId === "pill_skip_setup_force") {
+      try {
+        await completeOnboardingHandover("Setup skipped by user. Switched to regular chat mode.")
+        clippyBubbleVariant = "full"
+        showClippyBubble({ variant: "full", snapNoOverlap: true, preferAbove: false })
+        renderClippyBubble()
+        setStatus("Setup skipped. Chat mode is active.")
+      } catch (err) {
+        setStatus(err instanceof Error ? err.message : "Could not skip setup")
+      }
+      return
+    }
     await onboardingHedgey?.handlePill?.(pillId)
     clippyBubbleVariant = "compact"
     showClippyBubble({ variant: "compact", snapNoOverlap: true, preferAbove: true })
@@ -3563,13 +3577,20 @@ function syncOnboardingGuideActivation(){
 async function maybeCompleteOnboarding(){
   if (onboardingComplete) return true
   const hasAiSecret = await hasAnyAiProviderKey()
-  if (!hasAiSecret || !onboardingOpenAiTested) return false
+  const hasOllamaReady = Boolean(previewProviderState.ollamaValidated && normalizeOllamaBaseUrl(previewProviderState.ollamaBaseUrl))
+  const hasValidatedProvider = Boolean(onboardingOpenAiTested || hasOllamaReady)
+  if (!hasAiSecret || !hasValidatedProvider) return false
+  return completeOnboardingHandover("AI key saved and validated. Chat is ready.")
+}
+
+async function completeOnboardingHandover(eventText = "Onboarding completed. Chat is ready."){
+  if (onboardingComplete) return true
   onboardingComplete = true
   onboardingHedgey?.setActive?.(false)
   localStorage.setItem(ONBOARDING_KEY, "1")
   minimizeWindow(wins.openai)
   revealPostOpenAiWindows()
-  await addEvent("onboarding_step", "AI key saved and validated. Chat is ready.")
+  await addEvent("onboarding_step", eventText)
   return true
 }
 
@@ -4796,8 +4817,11 @@ function wireProviderPreviewDom(){
         provider: "ollama",
         model: previewProviderState.ollamaModel,
       })
-      nudgeOnboardingBubble({ compact: true })
-      setStatus(`Ollama endpoint saved. Active provider switched to ollama (${previewProviderState.ollamaModel}).`)
+      const completed = await maybeCompleteOnboarding()
+      if (!completed) nudgeOnboardingBubble({ compact: true })
+      setStatus(completed
+        ? `Ollama endpoint saved. Onboarding continued (${previewProviderState.ollamaModel}).`
+        : `Ollama endpoint saved. Active provider switched to ollama (${previewProviderState.ollamaModel}).`)
     } else {
       onboardingHedgey?.handleTrigger?.("provider_test_error", { provider: "ollama", code: "missing_url" })
       nudgeOnboardingBubble({ compact: true })
