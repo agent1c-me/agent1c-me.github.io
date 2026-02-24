@@ -1,4 +1,4 @@
-import { DARK_MODE_KEY, THEME_KEY } from "./constants.js";
+import { DARK_MODE_KEY, THEME_KEY, WALLPAPER_KEY } from "./constants.js";
 
 export function initThemeToggle({ button }){
   function apply(on){
@@ -22,6 +22,76 @@ export function getTheme(){
   return raw === "hedgey" ? "hedgeyOS" : raw;
 }
 
+function getDesktopEl(){
+  return document.getElementById("desktop") || document.querySelector(".desktop");
+}
+
+function applyWallpaperToDesktop(dataUrl){
+  const desktop = getDesktopEl();
+  if (!desktop) return;
+  if (dataUrl) {
+    desktop.style.backgroundImage = `url("${String(dataUrl).replaceAll('"', '\\"')}")`;
+    desktop.style.backgroundPosition = "center center";
+    desktop.style.backgroundRepeat = "no-repeat";
+    desktop.style.backgroundSize = "cover";
+  } else {
+    desktop.style.backgroundImage = "";
+    desktop.style.backgroundPosition = "";
+    desktop.style.backgroundRepeat = "";
+    desktop.style.backgroundSize = "";
+  }
+}
+
+export function getWallpaper(){
+  const raw = localStorage.getItem(WALLPAPER_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && typeof parsed.dataUrl === "string") {
+      return {
+        name: typeof parsed.name === "string" ? parsed.name : "Wallpaper",
+        dataUrl: parsed.dataUrl,
+      };
+    }
+  } catch {}
+  if (typeof raw === "string" && raw.startsWith("data:image/")) {
+    return { name: "Wallpaper", dataUrl: raw };
+  }
+  return null;
+}
+
+export function getWallpaperName(){
+  return getWallpaper()?.name || "";
+}
+
+export function applyWallpaper(wallpaper, { persist = true } = {}){
+  let record = null;
+  if (wallpaper && typeof wallpaper === "object") {
+    const dataUrl = String(wallpaper.dataUrl || "").trim();
+    if (dataUrl.startsWith("data:image/")) {
+      record = {
+        name: String(wallpaper.name || "Wallpaper").trim() || "Wallpaper",
+        dataUrl,
+      };
+    }
+  }
+  applyWallpaperToDesktop(record?.dataUrl || "");
+  if (persist) {
+    if (record) localStorage.setItem(WALLPAPER_KEY, JSON.stringify(record));
+    else localStorage.removeItem(WALLPAPER_KEY);
+  }
+  window.dispatchEvent(new CustomEvent("hedgey:wallpaper-changed", {
+    detail: {
+      name: record?.name || "",
+      hasWallpaper: !!record,
+    },
+  }));
+}
+
+export function clearWallpaper(opts = {}){
+  applyWallpaper(null, opts);
+}
+
 export function applyTheme(name, { persist = true } = {}){
   const allowed = ["beos", "system7", "greenscreen", "cyberpunk", "hedgeyOS"];
   const normalized = name === "hedgey" ? "hedgeyOS" : name;
@@ -39,7 +109,8 @@ export function initThemeState(){
   if (!saved) {
     localStorage.setItem(THEME_KEY, "hedgeyOS");
     applyTheme("hedgeyOS", { persist: false });
-    return;
+  } else {
+    applyTheme(getTheme(), { persist: false });
   }
-  applyTheme(getTheme(), { persist: false });
+  applyWallpaper(getWallpaper(), { persist: false });
 }

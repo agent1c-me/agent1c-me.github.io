@@ -3,7 +3,7 @@ import { createAppsMenu } from "./apps-menu.js";
 import { createWindowManager } from "./wm.js";
 import { initMenuDropdowns, initMenuActions } from "./menubar.js";
 import { saveUpload, hasWrappedKey, setPassphrase, unlockWithPassphrase } from "./filesystem.js";
-import { initThemeToggle, initThemeState, applyTheme, getTheme } from "./theme.js";
+import { initThemeToggle, initThemeState, applyTheme, getTheme, applyWallpaper, getWallpaperName, clearWallpaper } from "./theme.js";
 import { createHud } from "./hud.js";
 import { initAgent1C } from "./agent1c.js";
 import { createVoiceSttController } from "./voice-stt.js";
@@ -68,7 +68,7 @@ async function boot(){
     saveDialog,
     appsMenu,
     appsMap,
-    theme: { applyTheme, getTheme },
+    theme: { applyTheme, getTheme, applyWallpaper, getWallpaperName, clearWallpaper },
   });
 
   const hud = createHud({

@@ -1603,6 +1603,30 @@
       opacity: 0.7;
       font-size: calc(var(--font-size) - 1px);
     }
+    .theme-wallpaper{
+      display: grid;
+      gap: 6px;
+      align-content: start;
+      min-width: 0;
+    }
+    .theme-wallpaper-title{
+      font-weight: 600;
+    }
+    .theme-wallpaper-current{
+      text-align: left;
+      justify-content: flex-start;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .theme-wallpaper-actions{
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
     .formrow{
       display: grid;
       grid-template-columns: 110px 1fr;
