@@ -16,7 +16,11 @@
               Your distro has not been downloaded yet. Hitomi can play with an Arch Linux
               distro here after you install it locally in this browser.
             </p>
-            <button class="v86-install-button" type="button" id="installArchBtn">Install Arch</button>
+            <div class="v86-install-actions">
+              <button class="v86-install-button" type="button" id="installArchBtn">Install Arch</button>
+              <button class="v86-install-button v86-install-button-secondary" type="button" id="reinstallArchBtn">Reinstall Arch</button>
+              <button class="v86-install-button v86-install-button-danger" type="button" id="clearArchBtn">Clear Local Arch</button>
+            </div>
             <div class="v86-install-progress" id="installProgressWrap" hidden>
               <div class="v86-install-progress-bar">
                 <div class="v86-install-progress-fill" id="installProgressFill"></div>

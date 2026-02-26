@@ -8,6 +8,8 @@
   const keyboardBtn = document.getElementById("keyboard");
   const installPanel = document.getElementById("installPanel");
   const installArchBtn = document.getElementById("installArchBtn");
+  const reinstallArchBtn = document.getElementById("reinstallArchBtn");
+  const clearArchBtn = document.getElementById("clearArchBtn");
   const installProgressWrap = document.getElementById("installProgressWrap");
   const installProgressFill = document.getElementById("installProgressFill");
   const installProgressText = document.getElementById("installProgressText");
@@ -76,6 +78,17 @@
     await writable.close();
   };
 
+  const clearInstalledArch = async () => {
+    const dir = await getOrCreateStateDir();
+    try {
+      await dir.removeEntry(OPFS_STATE_FILE);
+    } catch (_) {}
+    try {
+      await dir.removeEntry("version.txt");
+    } catch (_) {}
+    cachedStateBuffer = null;
+  };
+
   const readStateFromOpfs = async () => {
     try {
       const dir = await getOrCreateStateDir();
@@ -136,6 +149,8 @@
   const showInstallRequired = (message) => {
     setInstallPanelVisible(true);
     if (installArchBtn) installArchBtn.disabled = false;
+    if (reinstallArchBtn) reinstallArchBtn.disabled = false;
+    if (clearArchBtn) clearArchBtn.disabled = false;
     if (installProgressWrap) installProgressWrap.hidden = true;
     if (installProgressFill) installProgressFill.style.width = "0%";
     setStatus(message || "Your distro has not been downloaded yet. Install Arch Linux to continue.");
@@ -203,6 +218,8 @@
     if (installInProgress) return;
     installInProgress = true;
     if (installArchBtn) installArchBtn.disabled = true;
+    if (reinstallArchBtn) reinstallArchBtn.disabled = true;
+    if (clearArchBtn) clearArchBtn.disabled = true;
     try {
       setStatus("Downloading Arch Linux install image...");
       const buffer = await fetchArchState();
@@ -219,7 +236,36 @@
       showInstallRequired(`Install failed: ${error?.message || "Unknown error"}`);
     } finally {
       installInProgress = false;
-      if (installArchBtn && !emulator) installArchBtn.disabled = false;
+      if (!emulator) {
+        if (installArchBtn) installArchBtn.disabled = false;
+        if (reinstallArchBtn) reinstallArchBtn.disabled = false;
+        if (clearArchBtn) clearArchBtn.disabled = false;
+      }
+    }
+  };
+
+  const reinstallArch = async () => {
+    if (installInProgress) return;
+    try {
+      setStatus("Clearing local Arch install...");
+      await clearInstalledArch();
+    } catch (error) {
+      console.error(error);
+      showInstallRequired(`Failed to clear local Arch: ${error?.message || "Unknown error"}`);
+      return;
+    }
+    await installArch();
+  };
+
+  const clearArchOnly = async () => {
+    if (installInProgress) return;
+    try {
+      setStatus("Clearing local Arch install...");
+      await clearInstalledArch();
+      showInstallRequired("Local Arch install cleared. Install Arch to continue.");
+    } catch (error) {
+      console.error(error);
+      showInstallRequired(`Failed to clear local Arch: ${error?.message || "Unknown error"}`);
     }
   };
 
@@ -307,6 +353,12 @@
 
   installArchBtn?.addEventListener("click", () => {
     void installArch();
+  });
+  reinstallArchBtn?.addEventListener("click", () => {
+    void reinstallArch();
+  });
+  clearArchBtn?.addEventListener("click", () => {
+    void clearArchOnly();
   });
 
   void ensureArchInstalledAndBoot();

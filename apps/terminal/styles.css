@@ -77,6 +77,23 @@ body {
   cursor: pointer;
 }
 
+.v86-install-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.v86-install-button-secondary {
+  background: #182019;
+  color: #d6dfcf;
+}
+
+.v86-install-button-danger {
+  background: #2a1717;
+  color: #f4d7d7;
+}
+
 .v86-install-button:disabled {
   opacity: 0.6;
   cursor: default;
